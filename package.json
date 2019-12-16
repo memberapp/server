@@ -1,0 +1,9 @@
+{
+  "name": "member",
+  "version": "3.0.0",
+  "description": "Member Server",
+  "main": "index.js",
+  "bin" : "index.js",
+  "author": "FreeTrade",
+  "license": "AGPL-3.0"
+}
