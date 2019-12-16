@@ -1,9 +1,12 @@
+# Member
+Member is a fully decentralized Reddit style public platform for discussion. It uses the Memo protocol and the BCH blockchain. You can see an interface to it running here - https://memberapp.github.io/
+
 # Member Server
 This is the server component of Member. Run it against your Bitcoin Cash Node to process Memo transactions into a database. It supports MySQL and SQLite databases. It also starts a http/s server to respond to requests from the Member client.
 
 # Getting Started
 
-You can run Member Server using node or run the compiled binaries - 
+You can run Member Server using the compiled binaries or using node - 
 
 Using Binaries
 1. Edit the release/config.js file to include your BCH node user/pass 
