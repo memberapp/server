@@ -1,7 +1,7 @@
 # Member Server
 This is the server component of Member. Run it against your Bitcoin Cash Node to process Memo transactions into a database. It supports MySQL and SQLite databases. It also starts a http/s server to respond to requests from the Member client.
 
-#Getting Started
+# Getting Started
 
 You can run Member Server using node or run the compiled binaries - 
 
