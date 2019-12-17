@@ -5,5 +5,14 @@
   "main": "index.js",
   "bin" : "index.js",
   "author": "FreeTrade",
-  "license": "AGPL-3.0"
+  "license": "AGPL-3.0",
+  "dependencies": {
+    "bitcoinjs-lib" : ">=3.3.2",
+    "bitcoind-rpc" : "0.7.1",
+    "sqlite-async" : ">=1.0.12",
+    "mysql" : ">=2.15.0",
+    "grpc" : ">=1.24.2",
+    "@grpc/proto-loader" : ">=0.5.3",
+    "url" : ">=0.11.0"
+ }
 }

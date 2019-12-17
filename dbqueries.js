@@ -29,7 +29,6 @@ dbqueries.getQuery = function (req, url,issqlite,escapeFunction,sqltimestamp) {
 	var qaddress = (queryData.qaddress || '').replace(/[^a-zA-Z0-9]+/g, "");
 	var txid = (queryData.txid || '').replace(/[^a-zA-Z0-9]+/g, "");
 	var type = (queryData.type || 'top').replace(/[^a-zA-Z0-9]+/g, "");
-
 	var order = (queryData.order || 'hot').replace(/[^a-zA-Z0-9]+/g, "");
 	var content = (queryData.content || 'posts').replace(/[^a-zA-Z0-9]+/g, "");
 	var filter = (queryData.filter || 'everyone').replace(/[^a-zA-Z0-9]+/g, "");
@@ -53,7 +52,7 @@ dbqueries.getQuery = function (req, url,issqlite,escapeFunction,sqltimestamp) {
 
 
 	var timedivisor=`((((`+sqltimestamp+`-messages.firstseen)/(60*60))+2)^1.8)`;
-	//sqlite doesn't have POWER funciton, using a (significantly worse) approximation 
+	//TODO sqlite doesn't have POWER funciton, using a (significantly worse) approximation 
 	if(issqlite)timedivisor=`((`+sqltimestamp+`-messages.firstseen)/3600)*4+(3600*24)`;
 
 	var least= " ORDER BY (LEAST(messages.likes,10)-LEAST(messages.dislikes,10)+LEAST(repliesuniquemembers,10)+LEAST((messages.tips/10000),10))";
