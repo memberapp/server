@@ -2,26 +2,11 @@
 
 var config = {};
 
-config.secondsToWaitonStart = 1;
-config.secondsToWaitBetweenProcessingBlocks = 0;
-config.secondsToWaitBetweenPollingNextBlock = 60;
-config.secondsToWaitBetweenPollingMemPool = 1;
-config.httpserverenabled = true;
-config.httpport = 3123;
-config.httpsserverenabled = false;
-config.httpsport = 8123;
-config.AccessControlAllowOrigin = "*";
-config.keypem = "/etc/letsencrypt/live/xxxxxxxx/privkey.pem";
-config.certpem = "/etc/letsencrypt/live/xxxxxxxx/cert.pem";
+//Bitcoin node stuff
+//for a desktop setup, you should only need to change the user/pass for your Bitcoin node
+//On BCHD, you may need to set the notls=1 in BCHD config if you get a 'SSL_ERROR_SSL: error'
 
-config.acceptmaxtrxsize = 5120; // 5K (allowing for numerous inputs, in the case of a big tip)
-config.bchdgrpcenabled = false; //BCHD GRPC server can be used to fetch UTXOs
-config.bchdhost = 'yourbchdgrpcserver.org:8335';
-
-config.usesqlite = true;
-config.sqldbfile = "member.db";
-
-//local rpc server
+//Local Bitcoin Node / (RPC server)
 config.rpcconfig = {
   protocol: 'http',
   user: 'username',
@@ -29,6 +14,33 @@ config.rpcconfig = {
   host: '127.0.0.1',
   port: '8334',
 };
+config.acceptmaxtrxsize = 5120; // 5K (allowing for numerous inputs, in the case of a big tip)
+
+//BCHD UTXO server
+//BCHD GRPC server can be used to fetch UTXOs, requires BCHD txindex
+config.bchdgrpcenabled = false; 
+config.bchdhost = 'yourbchdgrpcserver.org:8335';
+
+//Processing throttle
+config.secondsToWaitonStart = 1;
+config.secondsToWaitBetweenProcessingBlocks = 0;
+config.secondsToWaitBetweenPollingNextBlock = 60;
+config.secondsToWaitBetweenPollingMemPool = 1;
+
+//HTTP Server stuff
+config.httpserverenabled = true;
+config.httpport = 3123;
+config.AccessControlAllowOrigin = "*";
+
+//HTTPS Server stuff
+config.httpsserverenabled = false;
+config.httpsport = 8123;
+config.keypem = "/etc/letsencrypt/live/xxxxxxxx/privkey.pem";
+config.certpem = "/etc/letsencrypt/live/xxxxxxxx/cert.pem";
+
+//Database
+config.usesqlite = true; //Setting this to false will use MYSQL instead
+config.sqldbfile = "member.db";
 
 //mysql db server
 config.dbconfig = {
