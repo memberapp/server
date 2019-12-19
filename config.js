@@ -17,7 +17,7 @@ config.rpcconfig = {
 config.acceptmaxtrxsize = 5120; // 5K (allowing for numerous inputs, in the case of a big tip)
 
 //BCHD UTXO server
-//BCHD GRPC server can be used to fetch UTXOs, requires BCHD txindex
+//BCHD GRPC server can be used to fetch UTXOs, requires BCHD txindex=1 and addrindex=1
 config.bchdgrpcenabled = false; 
 config.bchdhost = 'yourbchdgrpcserver.org:8335';
 

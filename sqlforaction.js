@@ -13,7 +13,7 @@
  *    along with this program. If not, see
  *    <https://www.gnu.org/licenses/agpl-3.0.en.html>.
  *
- */ 
+ */
 'use strict';
 
 var sqlforaction = {};
@@ -59,7 +59,7 @@ function processOPDATA(hexdata, maxterms) {
 }
 
 sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
-try{
+
   var insertignore = "INSERT IGNORE ";
   if (issqlite) { insertignore = "INSERT OR IGNORE "; }
   var txid = tx.getId();
@@ -452,11 +452,7 @@ try{
       }
     }
   }
-} catch (e2) {
-  //Note errors for malformed transactions
-  console.log(e2);
-  return [];
-}
+
   //write the raw trx to db for future use
   return sql;
 }

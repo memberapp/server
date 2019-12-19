@@ -19,7 +19,11 @@
 var run = async function () {
 
   //App includes
-  var config = require(process.cwd()+'/config.js');
+  try{
+    var config = require(process.cwd() + '/../config.js');
+  }catch(e){
+    var config = require(process.cwd() + '/config.js');
+  }
   var sqlforaction = require('./sqlforaction.js');
   var dbqueries = require('./dbqueries.js');
 
@@ -89,7 +93,7 @@ var run = async function () {
     //sql
     var dbbc; //database connection for processing blocks
     var dbmem; //database connection for processing mempool
-    var lastblocktimestamp=0;
+    var lastblocktimestamp = 0;
 
     //Housekeeping on DB
     {
@@ -157,12 +161,12 @@ var run = async function () {
   async function sqliteStartProcessing() {
 
     //Copy the schema if the db doesn't exist yet
-    if(!fs.existsSync(sqldbfile)){
+    if (!fs.existsSync(sqldbfile)) {
       fs.createReadStream('memberEmpty.db').pipe(fs.createWriteStream(sqldbfile));
     }
 
     dbbc = await sqlite.open(sqldbfile);
-    
+
 
     //Defines the number of pages from the database file for storing in RAM, i.e., the cache size.
     //Increasing this parameter may increase performance of the database on high load, since the 
@@ -301,7 +305,7 @@ var run = async function () {
         console.log("Wait " + secondsToWaitBetweenPollingNextBlock + " seconds");
       }
       //We've exhausted current blocks. Start processing into the mempool at this point.
-      if ((err.code == -8 || err.code == -1) && mempoolprocessingstarted == false && currentBlock>613419) {
+      if ((err.code == -8 || err.code == -1) && mempoolprocessingstarted == false && currentBlock > 613419) {
         //-8 code from BU, -1 code from BCHD
         mempoolprocessingstarted = true;
 
@@ -338,7 +342,7 @@ var run = async function () {
     var block = bitcoinJs.Block.fromHex(hex);
     //console.log(block.getId() + "\n");
     var transactions = block.transactions;
-    lastblocktimestamp=block.timestamp;
+    lastblocktimestamp = block.timestamp;
     for (var i = 1; i < transactions.length; i++) {
       try {
         var dbresults = getSQLForTRX(transactions[i], block.timestamp);
@@ -353,26 +357,31 @@ var run = async function () {
   }
 
   function getSQLForTRX(tx, time) {
-    if (tx === undefined) {
-      return [];
+    try {
+      if (tx === undefined) {
+        return [];
+      }
+
+      //This assumes maximum of 1 memo action per trx
+      var txid = tx.getId();
+
+      //Don't examine all transactions again that have already been examined for memo trxs
+      if (mempooltxidsAlreadyProcessed.indexOf(txid) !== -1) {
+        //console.log("Skipping - this tx already processed from the mempool.");
+        return [];
+      }
+
+      //Don't process memo transactions that have already been processed
+      if (memotxidsalreadyprocessed.indexOf(txid) !== -1) {
+        console.log("Skipping - this tx already processed:" + txid);
+        return [];
+      }
+
+      return sqlforaction.getSQLForAction(tx, time, usesqlite, escapeFunction);
+    } catch (e2) {
+      console.log(e2);
+      return []
     }
-
-    //This assumes maximum of 1 memo action per trx
-    var txid = tx.getId();
-
-    //Don't examine all transactions again that have already been examined for memo trxs
-    if (mempooltxidsAlreadyProcessed.indexOf(txid) !== -1) {
-      //console.log("Skipping - this tx already processed from the mempool.");
-      return [];
-    }
-
-    //Don't process memo transactions that have already been processed
-    if (memotxidsalreadyprocessed.indexOf(txid) !== -1) {
-      console.log("Skipping - this tx already processed:" + txid);
-      return [];
-    }
-
-    return sqlforaction.getSQLForAction(tx, time, usesqlite, escapeFunction);
   }
 
   function getHouseKeepingOperation() {
@@ -451,7 +460,7 @@ var run = async function () {
       currentBlock++;
       //console.log("Processed:" + memotxidsalreadyprocessed.length);
       //These transactions have been included in a block, therefore shouldn't appear in the mempool again
-      memotxidsalreadyprocessed=[];
+      memotxidsalreadyprocessed = [];
       console.log("Wait " + secondsToWaitBetweenProcessingBlocks + " Seconds");
       return setTimeout(fetchAndProcessBlocksIntoDB, secondsToWaitBetweenProcessingBlocks * 1000);
     }
@@ -553,7 +562,7 @@ var run = async function () {
     } catch (e) { };
 
     if (err) {
-      console.log("mempool dberror 4;" + err + mempoolSQL);
+      console.log("mempool dberror 4;" + err);
     }
     else {
       mempooltxidsAlreadyProcessed = trxidsbeingprocessed;
@@ -686,9 +695,9 @@ var run = async function () {
 
             //Run query
             var msc = Date.now() / 1000;
-            var timestampToUse=timestampSQL;
+            var timestampToUse = timestampSQL;
             //If still processing blocks, use timestamp of last block as 'now' for queries
-            if(!mempoolprocessingstarted){timestampToUse=lastblocktimestamp;}
+            if (!mempoolprocessingstarted) { timestampToUse = lastblocktimestamp; }
             var query = dbqueries.getQuery(req, url, usesqlite, escapeFunction, timestampToUse);
 
             //sql
