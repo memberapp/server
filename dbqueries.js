@@ -157,7 +157,7 @@ dbqueries.getQuery = function (req, url,issqlite,escapeFunction,sqltimestamp) {
 		sql = select + ` DISTINCT(messages.txid), messages.*,
 				name, 
 				rating, 
-		repliestree as replies,
+		repliesdirect as replies,
 		repliesroot as repliesroot, 
 		likesdislikes.txid as likedtxid, 
 		likesdislikes.type as likeordislike  
@@ -212,7 +212,7 @@ dbqueries.getQuery = function (req, url,issqlite,escapeFunction,sqltimestamp) {
 			r.lat as rlat,
 			r.lon as rlon,
 			r.geohash as rgeohash,
-			r.repliestree as rreplies,
+			r.repliesdirect as rreplies,
 			rlikesdislikes.txid as rlikedtxid, 
 			rlikesdislikes.type as rlikeordislike,
 			l.address as laddress,
@@ -228,7 +228,7 @@ dbqueries.getQuery = function (req, url,issqlite,escapeFunction,sqltimestamp) {
 			l.lat as llat,
 			l.lon as llon,
 			l.geohash as lgeohash,
-			l.repliestree as lreplies,
+			l.repliesdirect as lreplies,
 			llikesdislikes.txid as llikedtxid, 
 			llikesdislikes.type as llikeordislike
 			FROM notifications
@@ -278,11 +278,9 @@ dbqueries.getQuery = function (req, url,issqlite,escapeFunction,sqltimestamp) {
 	}
 
 	if (action == "comments") //$replyCount=" LEFT JOIN (SELECT retxid, COUNT(*) as replies FROM messages GROUP BY retxid) counts ON counts.retxid=messages.txid ";
-	//$replyType = " repliestree as replies ";
 	{
 		postsOrComments = " AND messages.txid!=messages.roottxid ";
 	} else //$replyCount=" LEFT JOIN (SELECT roottxid, COUNT(*) as replies FROM messages GROUP BY roottxid) counts ON counts.roottxid=messages.txid ";
-	//$replyType = " repliesroot as replies ";
 	{
 		postsOrComments = " AND messages.roottxid=messages.txid ";
 	}
@@ -302,7 +300,7 @@ dbqueries.getQuery = function (req, url,issqlite,escapeFunction,sqltimestamp) {
 		sql = select + ` DISTINCT(messages.txid), messages.*,
 				name, 
 				rating, 
-		repliestree as replies,
+		repliesdirect as replies,
 		repliesroot as repliesroot, 
 		likesdislikes.txid as likedtxid, 
 		likesdislikes.type as likeordislike  
@@ -329,7 +327,7 @@ dbqueries.getQuery = function (req, url,issqlite,escapeFunction,sqltimestamp) {
 		blocks.trxid as blockstxid,
 		name,
 		rating,
-		messages.repliestree as replies,
+		messages.repliesdirect as replies,
 		likesdislikes.txid as likedtxid, 
 		likesdislikes.type as likeordislike  
 		FROM messages as messages3
@@ -361,7 +359,7 @@ dbqueries.getQuery = function (req, url,issqlite,escapeFunction,sqltimestamp) {
 			lat,
 			lon,
 			geohash, 
-			repliestree as replies,  
+			repliesdirect as replies,  
 			likesdislikes.txid as likedtxid, 
 			likesdislikes.type as likeordislike  
 			FROM messages 
@@ -378,7 +376,7 @@ dbqueries.getQuery = function (req, url,issqlite,escapeFunction,sqltimestamp) {
 					messages.*, 
 					names.name as name, 
 					userratings.rating as rating, 
-					repliestree as replies, 
+					repliesdirect as replies, 
 					likesdislikes.txid as likedtxid, 
 					likesdislikes.type as likeordislike  
 					FROM messages
