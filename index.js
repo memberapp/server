@@ -20,7 +20,7 @@ var run = async function () {
 
   //App includes
   try{
-    var config = require(process.cwd() + '/../config.js');
+    var config = require(process.cwd() + '/../memberprivateconfig.js');
   }catch(e){
     var config = require(process.cwd() + '/config.js');
   }
