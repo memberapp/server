@@ -34,7 +34,6 @@ function getAndPopulateNew(order, content, topicnameHOSTILE, filter, start, limi
                 contents = contents + getPostListItemHTML(getHTMLForPost(data[i], i + 1 + start, page, i, null));
         }
         displayItemListandNavButtonsHTML(contents, navbuttons, page, data, "posts", start);
-        //detectMultipleIDS();
     }, function (status) { //error detection....
         console.log('Something is wrong:'+status);
         document.getElementById(page).innerHTML = 'Something is wrong:'+status;
@@ -152,12 +151,27 @@ function getAndPopulateThread(roottxid, txid, pageName) {
 }
 
 
-function getAndPopulateTopicList(){
+function getAndPopulateTopicList(showpage){
     var page="topiclistanchor";
-    show(page);
+    if(showpage){
+        show(page);
+    }
     document.getElementById(page).innerHTML = document.getElementById("loading").innerHTML;
     getJSON(server + '?action=topiclist&qaddress=' + pubkey ).then(function (data) {
         
+        var selectbox=document.getElementById('topicselector'); 
+        while(selectbox.options[6]){
+            selectbox.remove(6)
+        }
+
+        for (var i = 0; i < 40; i++) {
+            var option = document.createElement("option");
+            //Caution, topicname can contain anything
+            option.text = capitalizeFirstLetter(data[i].topicname.substr(0,13));
+            option.value = data[i].topicname;
+            selectbox.add(option,[i+6]);
+        }
+    
         var contents = "<br/><table><tr><td class='tltopicname'>Topic</td><td class='tlmessagescount'>Posts</td><td class='tlsubscount'>Subs</td><td class='tlaction'>Action</td></tr>";
         for (var i = 0; i < data.length; i++) {
                 contents += getHTMLForTopic(data[i]);
@@ -181,19 +195,7 @@ function displayItemListandNavButtonsHTML(contents, navbuttons, page, data, styl
     contents = getItemListandNavButtonsHTML(contents, navbuttons, styletype, start);
     var pageElement=document.getElementById(page);
     pageElement.innerHTML = contents; //display the result in the HTML element
-    //Add twitter posts
-    //twttr.widgets.load(pageElement);
-    /*for(var i=0;i<twitterEmbeds.length;i++){
-        twttr.widgets.createTweet(twitterEmbeds[0], document.getElementById(twitterEmbeds[0]), {});
-    }
-    twitterEmbeds=new Array();*/
-
-    /*var listofelements=document.querySelectorAll('*[id^="tweet_"]');
-    listofelements[0].onload = function() {
-        this.contentWindow.postMessage({ element: this.id, query: "height" },"https://twitframe.com");
-    };*/
-  
-
+    listenForTwitFrameResizes();
     addStarRatings(data, page);
     window.scrollTo(0, 0);
     //detectMultipleIDS();

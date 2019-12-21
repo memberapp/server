@@ -4,7 +4,8 @@
 <head>
     <meta charset="utf-8">
     <meta http-equiv="x-ua-compatible" content="ie=edge">
-    <title>Member</title>
+    <meta name="description" content="Member ">
+    <title>Member is a fully decentralized public platform for discussion</title>
 
     <!--  Only scripts from this website, inline script needed for operation -->
     <!--  Call Memberjs for content -->
@@ -20,11 +21,22 @@
     <meta name="description" content="">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
+    <!--  Progressive Web App -->
+    <link rel="manifest" href="pwa/manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black"> 
+    <meta name="apple-mobile-web-app-title" content="Member">
+    <link rel="apple-touch-icon" href="/img/member512.png">
+    <meta name="theme-color" content="#cee3f8" />
+    <script src="pwa/pwa.js"></script>
+
     <!--  Leaflet (Map) -->
     <link rel="stylesheet" href="js/leaflet/leaflet.css" />
     <script src="js/leaflet/leaflet.js"></script>
 
-    <link id="pagestyle" rel="stylesheet" href="css/functional.css">
+    <link id="pagestyle" rel="stylesheet" href="css/base.css">
+    <link id="pagestyle2" rel="stylesheet" href="css/none.css">
+    <link id="pagestyle3" rel="stylesheet" href="css/none.css">    
     <link id="addonstyle" rel="stylesheet" href="">
 </head>
 
@@ -87,9 +99,9 @@
                     <span id="loggedin" style="display:none;">
                         <span class="headerbuttons">
                                 <span onclick="refreshPool();return false;" title="Refresh Balance" id="balancedetails" class="balancedetails">₿<span id="balance">0</span></span>
-                                <a id="newbutton" title="New Post" class="btn newpostbutton" href="#new" onclick="showNewPost();">📝</a>
                                 <a id="myfeedbutton" title="My Feed (Latest posts from your topics or peeps)" class="btn" href="#myfeed" onclick="showMyFeed();">📰</a>
                                 <a id="notificationsbutton" title="Notifications" class="btn" href="#notifications?start=0&amp;limit=25" onclick="showNotifications(0,25,'notifications');">🔔</a>
+                                <a id="newbutton" title="New Post" class="btn newpostbutton" href="#new" onclick="showNewPost();">📝</a>
                                 <a id="settingsbutton" title="Settings" class="btn" href="#settings" onclick="showSettings();">⚙️</a>
                         </span>
                     </span>
@@ -352,11 +364,12 @@
                 <div>
                     <label for="cssselector">Theme</label>
                     <select id="cssselector" onchange='changeStyle(document.getElementById("cssselector").value);'>
-                        <option value="functional.css">Choose Theme</option>
-                        <option value="functional.css">Reddit</option>
-                        <option value="hackernews.css">Hacker News</option>
-                        <option value="hnnightmode.css">Hacker News Night Mode</option>
-                        <option value="none.css">None</option>
+                        <option value="base">Choose Theme</option>
+                        <option value="base">Member</option>
+                        <option value="base nightmode">Member Night Mode</option>
+                        <option value="base hackernews">Hacker News</option>
+                        <option value="base hackernews hnnightmode">Hacker News Night Mode</option>
+                        <option value="none">None</option>
                     </select>
                 </div>
                 <div>
@@ -399,7 +412,7 @@
                 </div>
                 <div>
                     <label for="oneclicktip">One-Click Tip Amount</label>
-                    <input id="oneclicktip" value="0" size="8" type="number" step="1000" onchange="updateOneClickTip();"
+                    <input id="oneclicktip" value="0" size="8" type="number" onchange="updateOneClickTip();"
                         onkeypress="this.onchange();" onpaste="this.onchange();" oninput="this.onchange();">
                     (Amount
                     to tip when clicking up arrow, minimum 547)
@@ -614,7 +627,7 @@
                         class="separatorwide"></span><a href="https://www.bitcoin.com">Bitcoin</a><span
                         class="separatorwide"></span><a href="https://github.com/memberapp/protocol">Protocol</a><span
                         class="separatorwide"></span><a href="mailto:memorycoincc@gmail.com">Contact</a><span
-                        class="separatorwide"></span>version 2.10.0.<u>9</u>
+                        class="separatorwide"></span>version 3.0.0.<u>9</u>
                 </span>
                 <br />
                 <br />

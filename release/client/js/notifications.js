@@ -23,6 +23,7 @@ function getAndPopulateNotifications(start, limit, page, qaddress) {
         contents = getNotificationsTableHTML(contents, navbuttons);
         document.getElementById(page).innerHTML = contents; //display the result in an HTML element
         addStarRatings(data, page);
+        listenForTwitFrameResizes();
         window.scrollTo(0, 0);
     }, function (status) { //error detection....
         console.log('Something is wrong:' + status);
@@ -65,7 +66,7 @@ function getHTMLForNotification(data, rank, page, starindex) {
             break;
         case "rating":
             var theRating = 0;
-            if (data.rating != null && data.rating != "") { theRating = (ds(data.rating) / 64) + 1; }
+            if (data.rating != null && data.rating != "") { theRating = (Number(data.rating) / 64) + 1; }
             theRating = Math.round(theRating * 10) / 10;
             return notificationItemHTML(
                 "rating",
