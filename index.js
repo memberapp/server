@@ -748,8 +748,8 @@ var run = async function () {
       try {
         if (dbloc.end) dbloc.end();
         if (dbloc.close) dbloc.close();
-      } catch (err) {
-        console.log(err);
+      } catch (e2) {
+        console.log(e2);
       }
 
       if (err) {
@@ -767,7 +767,7 @@ var run = async function () {
           for(var i=0;i<rows.length;i++){
             
             //Check a result has been directly moderated
-            if(rows[i].moderated!=null){
+            if(rows[i].moderated!=null && rows[i].moderated!=""){
               moderatedtxid=rows[i].txid;
               rows.splice(i,1);
               i--;

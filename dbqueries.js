@@ -461,7 +461,8 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 	}
 
 	if (action == `topiclist`) {
-		sql = select + `DISTINCT(allmods.modr), topics.*, topics.topic as topicname, subs.address as address, allmods.modr as existingmod, mymods.address as existingmodaddress, names.name as existingmodname FROM topics 
+		//sublasttime is added here to keep mysql happy
+		sql = select + `DISTINCT(allmods.modr), topics.*, topics.topic as topicname, subs.address as address, allmods.modr as existingmod, mymods.address as existingmodaddress, names.name as existingmodname, subs.time as sublasttime FROM topics 
 			LEFT JOIN subs on topics.topic=subs.topic AND subs.address='` + qaddress + `'
 			LEFT JOIN mods as allmods on allmods.topic=topics.topic and (allmods.modr=allmods.address)
 			LEFT JOIN names on names.address=allmods.modr
