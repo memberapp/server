@@ -516,7 +516,13 @@ var run = async function () {
 
   function putSingleTransactionIntoSQLglobalvars(rawtx) {
     var timeStampInMs = Math.floor(Date.now() / 1000);
-    var transaction = bitcoinJs.Transaction.fromHex(rawtx);
+    try{
+      var transaction = bitcoinJs.Transaction.fromHex(rawtx);
+    }catch(e){
+      console.log(e);
+      console.log(rawtx);
+      return;
+    }
     var inserts = getSQLForTRX(transaction, timeStampInMs);
     mempoolSQL = mempoolSQL.concat(inserts);
     if (inserts.length > 0) {
@@ -751,6 +757,32 @@ var run = async function () {
       } else {
         try {
           msc = Date.now() / 1000 - msc;
+
+          //Removate moderated content
+          //Unfortunately not possible to include this graph like request in SQL statement.
+          //Workaround is to flag results in 'moderated' column and remove them here.
+          //Note, following a moderated result, the next result can also be a result that
+          //has the same txid and should be moderated, although the moderated field is null.
+          var moderatedtxid="none";
+          for(var i=0;i<rows.length;i++){
+            
+            //Check a result has been directly moderated
+            if(rows[i].moderated!=null){
+              moderatedtxid=rows[i].txid;
+              rows.splice(i,1);
+              i--;
+              continue;
+            }
+
+            //Check if a similar result has been returned directly following the moderated result
+            if(rows[i].txid==moderatedtxid){
+              rows.splice(i,1);
+              i--;
+              continue;
+            }
+
+          }
+
           if (rows.length > 0) {
             rows[0].msc = msc;
             rows[0].query = query.replace(/\t/g, ' ').replace(/\n/g, ' ');

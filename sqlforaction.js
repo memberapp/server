@@ -373,7 +373,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           var sentFrom = getFirstSendingAddressFromTX(tx.ins[0]);
           var reason = "";
           if (messages.length > 1) {
-            reason = messages[1];
+            reason = fromHex(messages[1]);
           }
           reason = reason.substr(0, MAXMESSAGE);
 
@@ -447,6 +447,76 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           }
           return sql;
           break;
+        case "6dc1": //Designate moderater 	0x6dc1 	address(20), topic
+          var address = bs58check.encode(Buffer.from("00" + messages[0], 'hex'));
+          address = address.substr(0, MAXADDRESS);
+          var sentFrom = getFirstSendingAddressFromTX(tx.ins[0]);
+          var topic="";          
+          if (messages.length > 1) {
+            var decode = fromHex(messages[1]);
+            var topic = decode.toLowerCase();
+            topic = topic.substr(0, MAXMESSAGE);
+          }
+          sql.push(insertignore + " into mods VALUES (" + escapeFunction(address) + "," + escapeFunction(sentFrom) + "," + escapeFunction(topic) + ");");
+          return sql;
+          break;
+        case "6dc2": //Dismiss moderater 	0x6dc2 	address(20), topic
+          var address = bs58check.encode(Buffer.from("00" + messages[0], 'hex'));
+          address = address.substr(0, MAXADDRESS);
+          var sentFrom = getFirstSendingAddressFromTX(tx.ins[0]);          
+          var topic="";
+          if (messages.length > 1) {
+            var decode = fromHex(messages[1]);
+            var topic = decode.toLowerCase();
+            topic = topic.substr(0, MAXMESSAGE);
+          }
+          sql.push("delete from mods WHERE modr=" + escapeFunction(address) + " AND address=" + escapeFunction(sentFrom) +" AND topic=" + escapeFunction(topic)+ ";");
+          return sql;
+          break;
+        case "6dc3": //Hide User 	0x6dc3 	address(20), topic
+          var address = bs58check.encode(Buffer.from("00" + messages[0], 'hex'));
+          address = address.substr(0, MAXADDRESS);
+          var sentFrom = getFirstSendingAddressFromTX(tx.ins[0]);
+          var topic="";          
+          if (messages.length > 1) {
+            var decode = fromHex(messages[1]);
+            var topic = decode.toLowerCase();
+            topic = topic.substr(0, MAXMESSAGE);
+          }
+          sql.push(insertignore + " into hiddenusers VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(address) + "," + escapeFunction(topic) + ");");
+          return sql;
+          break;
+        case "6dc4": //Unhide user 	0x6dc4 	address(20), topic
+          var address = bs58check.encode(Buffer.from("00" + messages[0], 'hex'));
+          address = address.substr(0, MAXADDRESS);
+          var sentFrom = getFirstSendingAddressFromTX(tx.ins[0]);
+          var topic="";          
+          if (messages.length > 1) {
+            var decode = fromHex(messages[1]);
+            var topic = decode.toLowerCase();
+            topic = topic.substr(0, MAXMESSAGE);
+          }
+          sql.push("delete from hiddenusers WHERE modr=" + escapeFunction(sentFrom) + " AND address=" + escapeFunction(address) +" AND topic=" + escapeFunction(topic)+ ";");
+          return sql;
+          break;
+
+        case "6dc5": //mod hide post, 0x6dc5, txid(32)
+          var retxid;
+          retxid = messages[0].match(/[a-fA-F0-9]{2}/g).reverse().join('');
+          retxid = retxid.substr(0, MAXTXID);
+          var sentFrom = getFirstSendingAddressFromTX(tx.ins[0]);
+          sql.push("REPLACE into hiddenposts VALUES (" + escapeFunction(retxid) + "," + escapeFunction(sentFrom) + ");");
+          return sql;
+          break;
+        case "6dc6": //mod unhide post, 0x6dc6, txid(32)
+          var retxid;
+          retxid = messages[0].match(/[a-fA-F0-9]{2}/g).reverse().join('');
+          retxid = retxid.substr(0, MAXTXID);
+          var sentFrom = getFirstSendingAddressFromTX(tx.ins[0]);
+          sql.push("delete from hiddenposts WHERE modr=" + escapeFunction(sentFrom) + " AND txid=" + escapeFunction(retxid) + ";");
+          return sql;
+          break;
+
         default:
           break;
       }

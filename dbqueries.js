@@ -82,6 +82,8 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			orderby = least + " DESC, messages.likes DESC ";
 		}
 
+		orderby = orderby + " , moderated DESC ";
+
 		var postsOrComments = " ";
 		if (content == "replies") {
 			postsOrComments = " AND messages.txid!=messages.roottxid ";
@@ -105,6 +107,12 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			WHERE (follows.address='` + address + `' 
 			OR subs.address='` + address + `') `;
 		}
+
+		var mods = ` LEFT JOIN hiddenposts ON hiddenposts.txid=messages.txid
+		LEFT JOIN hiddenusers ON hiddenusers.address=messages.address
+		LEFT JOIN mods on (hiddenposts.modr = mods.modr OR hiddenusers.modr=mods.modr)
+		LEFT JOIN mods as mods2 on mods2.modr=mods.address AND mods2.address="` + address + `" `;
+
 
 		if (filter == "mypeeps") {
 			followsORblocks = ` LEFT JOIN follows ON messages.address=follows.follows WHERE follows.address='` + address + `' `;
@@ -155,7 +163,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		}
 
 
-		sql = select + ` DISTINCT(messages.txid), messages.*,
+		sql = select + ` DISTINCT(messages.txid), mods2.address as moderated, messages.*,
 				name, 
 				rating, 
 		repliesdirect as replies,
@@ -166,6 +174,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		` + userratings + `
 		` + names + `
 		` + likesanddislikes + ` 
+		` + mods + `
 		` + followsORblocks + `
 		` + postsOrComments + `
 		` + topicquery + `
@@ -452,8 +461,11 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 	}
 
 	if (action == `topiclist`) {
-		sql = select + ` *, topics.topic as topicname FROM topics
+		sql = select + `DISTINCT(allmods.modr), topics.*, topics.topic as topicname, subs.address as address, allmods.modr as existingmod, mymods.address as existingmodaddress, names.name as existingmodname FROM topics 
 			LEFT JOIN subs on topics.topic=subs.topic AND subs.address='` + qaddress + `'
+			LEFT JOIN mods as allmods on allmods.topic=topics.topic and (allmods.modr=allmods.address)
+			LEFT JOIN names on names.address=allmods.modr
+			LEFT JOIN mods as mymods on allmods.modr =mymods.modr and mymods.address=subs.address 
 			ORDER BY time DESC, ((messagescount+subscount*10)/((((`+ sqltimestamp + `-mostrecent)/(60*60))+2))*((((` + sqltimestamp + `-mostrecent)/(60*60))+2))) DESC
 			LIMIT 0,200`;
 	}
