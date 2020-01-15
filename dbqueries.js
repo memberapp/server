@@ -65,9 +65,14 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 	//var select = `SELECT \/*+ MAX_EXECUTION_TIME = 1000 *\/ `;
 
 	var select = `SELECT `;
-	var likesanddislikes = "LEFT JOIN likesdislikes ON likesdislikes.address='" + address + "' AND likesdislikes.retxid=messages.txid ";
-	var names = "LEFT JOIN names ON messages.address=names.address";
-	var userratings = "LEFT JOIN userratings ON userratings.address='" + address + "' AND messages.address=userratings.rates";
+	var likesanddislikes = " LEFT JOIN likesdislikes ON likesdislikes.address='" + address + "' AND likesdislikes.retxid=messages.txid ";
+	var names = " LEFT JOIN names ON messages.address=names.address ";
+	var userratings = " LEFT JOIN userratings ON userratings.address='" + address + "' AND messages.address=userratings.rates ";
+
+	var mods = ` LEFT JOIN hiddenposts ON hiddenposts.txid=messages.txid
+	LEFT JOIN hiddenusers ON hiddenusers.address=messages.address
+	LEFT JOIN mods on (hiddenposts.modr = mods.modr OR hiddenusers.modr=mods.modr)
+	LEFT JOIN mods as mods2 on mods2.modr=mods.address AND mods2.address="` + address + `" `;
 
 	if (action == 'show') {
 
@@ -107,12 +112,6 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			WHERE (follows.address='` + address + `' 
 			OR subs.address='` + address + `') `;
 		}
-
-		var mods = ` LEFT JOIN hiddenposts ON hiddenposts.txid=messages.txid
-		LEFT JOIN hiddenusers ON hiddenusers.address=messages.address
-		LEFT JOIN mods on (hiddenposts.modr = mods.modr OR hiddenusers.modr=mods.modr)
-		LEFT JOIN mods as mods2 on mods2.modr=mods.address AND mods2.address="` + address + `" `;
-
 
 		if (filter == "mypeeps") {
 			followsORblocks = ` LEFT JOIN follows ON messages.address=follows.follows WHERE follows.address='` + address + `' `;
@@ -330,13 +329,13 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 
 	//Threads
 
-	var threadorder = " ORDER BY (LEAST(messages.likes,10)-LEAST(messages.dislikes,10)+LEAST(replies-1,10)+LEAST((messages.tips/10000),10))/" + timedivisor + " DESC";
-	if (issqlite) threadorder = " ORDER BY (MIN(messages.likes,10)-MIN(messages.dislikes,10)+MIN(replies-1,10)+MIN((messages.tips/10000),10))/" + timedivisor + " DESC";
+	var threadorder = " ORDER BY (LEAST(messages.likes,10)-LEAST(messages.dislikes,10)+LEAST(replies-1,10)+LEAST((messages.tips/10000),10))/" + timedivisor + " DESC, moderated DESC";
+	if (issqlite) threadorder = " ORDER BY (MIN(messages.likes,10)-MIN(messages.dislikes,10)+MIN(replies-1,10)+MIN((messages.tips/10000),10))/" + timedivisor + " DESC, moderated DESC";
 	if (action == "thread") {
 		if (txid.length < 10) {
 			txid = "nodice";
 		}
-		sql = select + ` messages.*,
+		sql = select + ` DISTINCT(messages.txid), messages.*, mods2.address as moderated,
 		blocks.trxid as blockstxid,
 		name,
 		rating,
@@ -344,11 +343,12 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		likesdislikes.txid as likedtxid, 
 		likesdislikes.type as likeordislike  
 		FROM messages as messages3
-		LEFT JOIN messages ON messages.roottxid=messages3.roottxid
-		` + userratings + ` 
-		` + names + `
-		` + likesanddislikes + `
-		LEFT JOIN blocks ON messages.address=blocks.blocks AND blocks.address='` + address + `' WHERE 1=1  
+		LEFT JOIN messages ON messages.roottxid=messages3.roottxid ` 
+		+ userratings 
+		+ names
+		+ likesanddislikes
+		+ mods
+		+ `LEFT JOIN blocks ON messages.address=blocks.blocks AND blocks.address='` + address + `' WHERE 1=1  
 		AND messages3.txid LIKE '` + txid + `%' AND messages3.roottxid!='' ` + threadorder;
 	}
 
