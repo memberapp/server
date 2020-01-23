@@ -504,6 +504,11 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		sql = "SELECT name,address as testaddress,(select rating from userratings where address = '" + qaddress + "' AND rates=testaddress) as rating, (select name from names where address = '" + qaddress + "') as ratername from names where name LIKE '%Surrogate%'";
 	}
 
+	if(action == "usersearch"){
+		var usersearchHOSTILE = "%"+(queryData.searchterm || '')+"%";
+		sql = "SELECT names.*, userratings.rating as rating from names LEFT JOIN userratings ON names.address = userratings.rates AND userratings.address='" + address + "' where name like "+escapeFunction(usersearchHOSTILE)+" LIMIT 10";
+	}
+
 	return sql;
 
 }
