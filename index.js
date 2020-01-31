@@ -110,12 +110,13 @@ var run = async function () {
       }
 
 
-      //Recreate topics table  
+      //Recreate topics table  - null topic was returning null timestamp, so added a clause to address this
+      //Need the null topic to return to allow moderator functions on sitewide bases
       if (usesqlite) {
         expensiveHousekeepingSQLOperations.push(
-          [`DROP TABLE IF EXISTS topics;`, `CREATE TABLE topics (topic VARCHAR(220), messagescount int(9), mostrecent int(11), subscount mediumint(9));`, `INSERT into topics SELECT * FROM (SELECT messages.topic, COUNT(*) as messagescount, recent.latest as mostrecent, subs.subscount FROM messages LEFT JOIN (SELECT messages.topic, MAX(firstseen) as latest FROM messages GROUP BY messages.topic) recent on messages.topic = recent.topic LEFT JOIN (SELECT count(*) as subscount, subs.topic FROM subs GROUP BY subs.topic) subs on subs.topic=messages.topic GROUP BY subs.topic)  as fulltable WHERE messagescount>3 AND subscount>1;`]);
+          [`DROP TABLE IF EXISTS topics;`, `CREATE TABLE topics (topic VARCHAR(220), messagescount int(9), mostrecent int(11), subscount mediumint(9));`, `INSERT into topics SELECT * FROM (SELECT IFNULL(messages.topic,''), COUNT(*) as messagescount, IFNULL(recent.latest,` + timestampSQL + `) as mostrecent, IFNULL(subs.subscount,100) FROM messages LEFT JOIN (SELECT messages.topic, MAX(firstseen) as latest FROM messages GROUP BY messages.topic) recent on messages.topic = recent.topic LEFT JOIN (SELECT count(*) as subscount, subs.topic FROM subs GROUP BY subs.topic) subs on subs.topic=messages.topic GROUP BY subs.topic)  as fulltable WHERE messagescount>3 AND mostrecent>` + timestampSQL + `-30*24*60*60;`]);
       } else {
-        expensiveHousekeepingSQLOperations.push([`DROP TABLE IF EXISTS topics; CREATE TABLE topics (topic VARCHAR(220) CHARACTER SET utf8mb4, messagescount int(9), mostrecent int(11), subscount mediumint(9)) SELECT * FROM (SELECT messages.topic, COUNT(*) as messagescount, recent.latest as mostrecent, subs.subscount FROM messages LEFT JOIN (SELECT topic, MAX(firstseen) as latest FROM messages GROUP BY topic) recent on messages.topic = recent.topic LEFT JOIN (SELECT count(*) as subscount, topic FROM subs GROUP BY topic) subs on subs.topic=messages.topic GROUP BY topic)  as fulltable WHERE messagescount>3 AND subscount>1;`]);
+        expensiveHousekeepingSQLOperations.push([`DROP TABLE IF EXISTS topics; CREATE TABLE topics (topic VARCHAR(220) CHARACTER SET utf8mb4, messagescount int(9), mostrecent int(11), subscount mediumint(9)) SELECT * FROM (SELECT messages.topic, COUNT(*) as messagescount, IFNULL(recent.latest,` + timestampSQL + `) as mostrecent, IFNULL(subs.subscount,100) as subscount FROM messages LEFT JOIN (SELECT topic, MAX(firstseen) as latest FROM messages GROUP BY topic) recent on messages.topic = recent.topic LEFT JOIN (SELECT count(*) as subscount, topic FROM subs GROUP BY topic) subs on subs.topic=messages.topic GROUP BY topic)  as fulltable WHERE messagescount>3 AND mostrecent>` + timestampSQL + `-30*24*60*60;`]);
       }
 
       //It's bad to have too many null roottxids - slows down fixorphan queries

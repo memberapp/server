@@ -122,7 +122,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           } else {
             sql.push(insertignore + " into names VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(name) + "," + escapeFunction(txid) + ",'',''," + escapeFunction(pagename) + ") ;");
             //If profile is already set, but name is not need to update values because previous statement will have been ignored
-            sql.push("UPDATE names set name=" + escapeFunction(name) + ", nametxid=" + escapeFunction(txid) + ", pagingid=" + escapeFunction(pagename) + " WHERE name='';");
+            sql.push("UPDATE names set name=" + escapeFunction(name) + ", nametxid=" + escapeFunction(txid) + ", pagingid=" + escapeFunction(pagename) + " WHERE name='' AND address=" + escapeFunction(sentFrom) + ";");
             return sql;
           }
           break;

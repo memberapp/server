@@ -71,8 +71,8 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 
 	var mods = ` LEFT JOIN hiddenposts ON hiddenposts.txid=messages.txid
 	LEFT JOIN hiddenusers ON hiddenusers.address=messages.address
-	LEFT JOIN mods on (hiddenposts.modr = mods.modr OR hiddenusers.modr=mods.modr)
-	LEFT JOIN mods as mods2 on mods2.modr=mods.address AND mods2.address="` + address + `" `;
+	LEFT JOIN mods on (hiddenposts.modr = mods.modr OR hiddenusers.modr=mods.modr) AND (mods.topic=messages.topic OR mods.topic='')
+	LEFT JOIN mods as mods2 on mods2.modr=mods.address AND mods2.address="` + address + `" AND (mods2.topic=mods.topic OR mods2.topic='')`;
 
 	if (action == 'show') {
 
@@ -462,12 +462,13 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 
 	if (action == `topiclist`) {
 		//sublasttime is added here to keep mysql happy
-		sql = select + `DISTINCT(allmods.modr), topics.*, topics.topic as topicname, subs.address as address, allmods.modr as existingmod, mymods.address as existingmodaddress, names.name as existingmodname, subs.time as sublasttime FROM topics 
-			LEFT JOIN subs on topics.topic=subs.topic AND subs.address='` + qaddress + `'
+		//subs.time as sublasttime
+		sql = select + `DISTINCT(allmods.modr), topics.*, topics.topic as topicname, subs.address as address, allmods.modr as existingmod, mymods.address as existingmodaddress, names.name as existingmodname FROM topics 
+			LEFT JOIN subs on (topics.topic=subs.topic OR topics.topic='') AND subs.address='` + qaddress + `'
 			LEFT JOIN mods as allmods on allmods.topic=topics.topic and (allmods.modr=allmods.address)
 			LEFT JOIN names on names.address=allmods.modr
 			LEFT JOIN mods as mymods on allmods.modr =mymods.modr and mymods.address=subs.address 
-			ORDER BY time DESC, ((messagescount+subscount*10)/((((`+ sqltimestamp + `-mostrecent)/(60*60))+2))*((((` + sqltimestamp + `-mostrecent)/(60*60))+2))) DESC
+			ORDER BY (topicname='') DESC, ((messagescount+subscount*10)/((((`+ sqltimestamp + `-mostrecent)/(60*60))+2))*((((` + sqltimestamp + `-mostrecent)/(60*60))+2))) DESC
 			LIMIT 0,200`;
 	}
 
