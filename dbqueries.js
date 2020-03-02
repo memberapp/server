@@ -506,8 +506,10 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 	}
 
 	if(action == "usersearch"){
-		var usersearchHOSTILE = "%"+(queryData.searchterm || '')+"%";
-		sql = "SELECT names.*, userratings.rating as rating from names LEFT JOIN userratings ON names.address = userratings.rates AND userratings.address='" + address + "' where name like "+escapeFunction(usersearchHOSTILE)+" LIMIT 10";
+		topicname = topicname;
+		var usersearchHOSTILE = "%"+(queryData.searchterm.toLowerCase() || '')+"%";
+		//Searching the pagingid rather than the name for case insensitive search
+		sql = "SELECT names.*, userratings.rating as rating from names LEFT JOIN userratings ON names.address = userratings.rates AND userratings.address='" + address + "' where pagingid like "+escapeFunction(usersearchHOSTILE)+" LIMIT 10";
 	}
 
 	return sql;

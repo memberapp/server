@@ -14,7 +14,7 @@ config.rpcconfig = {
   host: '127.0.0.1',
   port: '8334',
 };
-config.acceptmaxtrxsize = 5120; // 5K (allowing for numerous inputs, in the case of a big tip)
+config.acceptmaxtrxsize = 51200; // 50K (allowing for numerous inputs, in the case of a big tip)
 
 //BCHD UTXO server
 //BCHD GRPC server can be used to fetch UTXOs, requires BCHD txindex=1 and addrindex=1
