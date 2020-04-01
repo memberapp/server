@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: default
+  labels:
+    service: member
+    version: 0.0.1
+  name: member
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      service: member
+  template:
+    metadata:
+      labels:
+        service: member
+    spec:
+      containers:
+      - env:
+        - name: BCH_NODE_SCHEME
+          value: https
+        - name: BCH_NODE_HOST
+          value: bchd.greyh.at
+        - name: BCH_NODE_PORT
+          value: "8334"
+        - name: BCH_NODE_USER
+          valueFrom:
+            secretKeyRef:
+              name: bchd
+              key: rpcuser
+        - name: BCH_NODE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: bchd
+              key: rpcpass
+        image: zquestz/member:latest
+        command: ["node"]
+        args: ["index.js"]
+        name: member
+        volumeMounts:
+          - mountPath: /data
+            name: member-data
+        resources:
+          requests:
+            memory: "256Mi"
+      restartPolicy: Always
+      volumes:
+        - name: member-data
+          gcePersistentDisk:
+            pdName: member-data
+            fsType: ext4

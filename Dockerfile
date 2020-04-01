@@ -11,7 +11,7 @@ WORKDIR $APP_HOME
 COPY . $APP_HOME
 
 # Remove anything lingering in the data dir.
-RUN rm data/*
+RUN rm -f data/*
 
 # Build the code and nuke local modules.
 RUN rm -rf node_modules
