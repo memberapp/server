@@ -45,7 +45,7 @@ spec:
             name: member-data
         resources:
           requests:
-            memory: "256Mi"
+            memory: "1Gi"
       restartPolicy: Always
       volumes:
         - name: member-data
