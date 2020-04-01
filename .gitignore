@@ -1,2 +1,3 @@
-
+node_modules
 member.db
+package-lock.json
