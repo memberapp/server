@@ -54,7 +54,7 @@ config.dbconfig = {
 
 //Usually the processing will start where it left off,
 //you can override this by setting a startBlock.
-config.startBlock = null;
+//config.startBlock = null;
 //config.startBlock = 525471; //first memo trx
 //config.startBlock = 525590; //name
 //config.startBlock = 525704; //follows
@@ -63,5 +63,6 @@ config.startBlock = null;
 //config.startBlock = 525940;
 //config.startBlock = 539220; //geohash
 //config.startBlock = 543376; //first token created
+config.startBlock = 628500;
 
 module.exports = config;
