@@ -8,18 +8,18 @@ var config = {};
 
 //Local Bitcoin Node / (RPC server)
 config.rpcconfig = {
-  protocol: 'http',
-  user: 'username',
-  pass: 'password',
-  host: '127.0.0.1',
-  port: '8334',
+  protocol: process.env.BCH_NODE_SCHEME || 'http',
+  user: process.env.BCH_NODE_USER || 'username',
+  pass: process.env.BCH_NODE_PASSWORD || 'password',
+  host: process.env.BCH_NODE_HOST || '127.0.0.1',
+  port: process.env.BCH_NODE_PORT || '8334',
 };
 config.acceptmaxtrxsize = 51200; // 50K (allowing for numerous inputs, in the case of a big tip)
 
 //BCHD UTXO server
 //BCHD GRPC server can be used to fetch UTXOs, requires BCHD txindex=1 and addrindex=1
-config.bchdgrpcenabled = false; 
-config.bchdhost = 'yourbchdgrpcserver.org:8335';
+config.bchdgrpcenabled = true;
+config.bchdhost = 'bchd.greyh.at:8335';
 
 //Processing throttle
 config.secondsToWaitonStart = 1;
@@ -40,7 +40,7 @@ config.certpem = "/etc/letsencrypt/live/xxxxxxxx/cert.pem";
 
 //Database
 config.usesqlite = true; //Setting this to false will use MYSQL instead
-config.sqldbfile = "member.db";
+config.sqldbfile = "data/member.db";
 
 //mysql db server
 config.dbconfig = {

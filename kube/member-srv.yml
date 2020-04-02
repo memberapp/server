@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: member
+  namespace: default
+spec:
+  ports:
+    - port: 97
+      targetPort: 3123
+  selector:
+    service: member
+  type: NodePort

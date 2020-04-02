@@ -1,2 +1,5 @@
-
+node_modules
 member.db
+package-lock.json
+data/member.db
+yarn.lock

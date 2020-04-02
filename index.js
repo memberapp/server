@@ -824,12 +824,16 @@ var run = async function () {
 
   //Utility functions
   function sanitizeAlphanumeric(input) {
-    if (input == null) { return ""; }
+    if (!isString(input)) { return ""; }
     return input.replace(/[^A-Za-z0-9]/g, '');
   }
 
   function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  function isString(obj) {
+    return (Object.prototype.toString.call(obj) === '[object String]');
   }
 };
 
