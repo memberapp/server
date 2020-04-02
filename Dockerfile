@@ -17,7 +17,7 @@ RUN rm -f data/*
 RUN rm -rf node_modules
 RUN yarn
 
-VOLUME /data
+VOLUME /app/data
 
 ENV PORT 3123
 EXPOSE 3123
