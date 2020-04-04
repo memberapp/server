@@ -3,3 +3,6 @@ member.db
 package-lock.json
 data/member.db
 yarn.lock
+member0801.db
+memberLOCKED.db
+emptdbsql.txt

@@ -18,7 +18,7 @@
 
 var dbqueries = {};
 
-dbqueries.getQuery = function (req, url,issqlite,escapeFunction,sqltimestamp) {
+dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp) {
 
 	//Sanitize input
 
@@ -41,6 +41,7 @@ dbqueries.getQuery = function (req, url,issqlite,escapeFunction,sqltimestamp) {
 	var west = (queryData.west || '0').replace(/[^0-9\.\-]+/g, "");
 
 	//Numeric positive integer
+	var since = Number((queryData.since || '0').replace(/[^0-9]+/g, ""));
 	var start = Number((queryData.start || '0').replace(/[^0-9]+/g, ""));
 	var limit = Number((queryData.limit || '25').replace(/[^0-9]+/g, ""));
 
@@ -51,35 +52,42 @@ dbqueries.getQuery = function (req, url,issqlite,escapeFunction,sqltimestamp) {
 
 
 
-	var timedivisor=`((((`+sqltimestamp+`-messages.firstseen)/(60*60))+2)^1.8)`;
+	var timedivisor = `((((` + sqltimestamp + `-messages.firstseen)/(60*60))+2)^1.8)`;
 	//TODO sqlite doesn't have POWER funciton, using a (significantly worse) approximation 
-	if(issqlite)timedivisor=`((`+sqltimestamp+`-messages.firstseen)/3600)*4+(3600*24)`;
+	if (issqlite) timedivisor = `((` + sqltimestamp + `-messages.firstseen)/3600)*4+(3600*24)`;
 
-	var least= " ORDER BY (LEAST(messages.likes,10)-LEAST(messages.dislikes,10)+LEAST(repliesuniquemembers,10)+LEAST((messages.tips/10000),10))";
-	if(issqlite)least=" ORDER BY (MIN(messages.likes,10)-MIN(messages.dislikes,10)+MIN(repliesuniquemembers,10)+MIN((messages.tips/10000),10))";
+	var least = " ORDER BY (LEAST(messages.likes,10)-LEAST(messages.dislikes,10)+LEAST(repliesuniquemembers,10)+LEAST((messages.tips/10000),10))";
+	if (issqlite) least = " ORDER BY (MIN(messages.likes,10)-MIN(messages.dislikes,10)+MIN(repliesuniquemembers,10)+MIN((messages.tips/10000),10))";
 
 	var sql = "SELECT VERSION();";
 
 	//This didn't seem to do anything
 	//var select = `SELECT \/*+ MAX_EXECUTION_TIME = 1000 *\/ `;
-	
+
 	var select = `SELECT `;
-	var likesanddislikes = "LEFT JOIN likesdislikes ON likesdislikes.address='" + address + "' AND likesdislikes.retxid=messages.txid ";
-	var names = "LEFT JOIN names ON messages.address=names.address";
-	var userratings = "LEFT JOIN userratings ON userratings.address='" + address + "' AND messages.address=userratings.rates";
-	
+	var likesanddislikes = " LEFT JOIN likesdislikes ON likesdislikes.address='" + address + "' AND likesdislikes.retxid=messages.txid ";
+	var names = " LEFT JOIN names ON messages.address=names.address ";
+	var userratings = " LEFT JOIN userratings ON userratings.address='" + address + "' AND messages.address=userratings.rates ";
+
+	var mods = ` LEFT JOIN hiddenposts ON hiddenposts.txid=messages.txid
+	LEFT JOIN hiddenusers ON hiddenusers.address=messages.address
+	LEFT JOIN mods on (hiddenposts.modr = mods.modr OR hiddenusers.modr=mods.modr) AND (mods.topic=messages.topic OR mods.topic='')
+	LEFT JOIN mods as mods2 on mods2.modr=mods.address AND mods2.address="` + address + `" AND (mods2.topic=mods.topic OR mods2.topic='')`;
+
 	if (action == 'show') {
 
 		var orderby = " ";
 
 		if (order == 'hot' || order == 'best') {//heavily for new
-			orderby = least+"/"+timedivisor+" DESC, messages.likes DESC ";
-		}else if (order == 'new') {//order by date
+			orderby = least + "/" + timedivisor + " DESC, messages.likes DESC ";
+		} else if (order == 'new') {//order by date
 			orderby = " ORDER BY messages.firstseen DESC ";
-		}else{
+		} else {
 			//If neither hot, best or new, then order is top
-			orderby = least+" DESC, messages.likes DESC ";
+			orderby = least + " DESC, messages.likes DESC ";
 		}
+
+		orderby = orderby + " , moderated DESC ";
 
 		var postsOrComments = " ";
 		if (content == "replies") {
@@ -92,11 +100,11 @@ dbqueries.getQuery = function (req, url,issqlite,escapeFunction,sqltimestamp) {
 		var topicquery = " ";
 		var topicnameHOSTILE = (queryData.topicname || '');
 		topicnameHOSTILE = topicnameHOSTILE.toLowerCase();
-			
+
 		if (topicnameHOSTILE != "" && topicnameHOSTILE != "mytopics" && topicnameHOSTILE != "myfeed") { //mytopics has special meaning
 			topicquery = " AND messages.topic=" + escapeFunction(topicnameHOSTILE) + " ";
 		}
-		
+
 		var followsORblocks = " LEFT JOIN blocks ON messages.address=blocks.blocks AND blocks.address='" + address + "' WHERE blocks IS NULL ";
 		if (filter == "myfeed") { //My feed, posts from my subs or my peeps (does not exclude blocked members)
 			followsORblocks = ` LEFT JOIN follows ON messages.address=follows.follows 
@@ -105,25 +113,25 @@ dbqueries.getQuery = function (req, url,issqlite,escapeFunction,sqltimestamp) {
 			OR subs.address='` + address + `') `;
 		}
 
-		if(filter=="mypeeps"){
+		if (filter == "mypeeps") {
 			followsORblocks = ` LEFT JOIN follows ON messages.address=follows.follows WHERE follows.address='` + address + `' `;
 		}
 
-		if(topicnameHOSTILE=="mytopics"){ //Show topics, but not from blocked members
+		if (topicnameHOSTILE == "mytopics") { //Show topics, but not from blocked members
 			followsORblocks = ` 
 			LEFT JOIN subs ON messages.topic=subs.topic 
 			LEFT JOIN blocks ON messages.address=blocks.blocks AND blocks.address='` + address + `'
 			WHERE blocks IS NULL AND subs.address='` + address + `' `;
 		}
 
-		if(topicnameHOSTILE=="mytopics" && filter=="mypeeps"){
+		if (topicnameHOSTILE == "mytopics" && filter == "mypeeps") {
 			followsORblocks = ` LEFT JOIN follows ON messages.address=follows.follows 
 			LEFT JOIN subs ON messages.topic=subs.topic
 			WHERE (follows.address='` + address + `' 
 			AND subs.address='` + address + `') `;
 		}
 
-		if(topicnameHOSTILE=="myfeed" || filter=="myfeed"){
+		if (topicnameHOSTILE == "myfeed" || filter == "myfeed") {
 			followsORblocks = ` LEFT JOIN follows ON messages.address=follows.follows 
 			LEFT JOIN subs ON messages.topic=subs.topic
 			WHERE (follows.address='` + address + `' 
@@ -133,28 +141,28 @@ dbqueries.getQuery = function (req, url,issqlite,escapeFunction,sqltimestamp) {
 
 
 		//Default to a week
-		var firstseen = " AND messages.firstseen>"+sqltimestamp+"-(60*60*24*7) ";
-		
-		if(order=='topd'){
-			firstseen = " AND messages.firstseen>"+sqltimestamp+"-(60*60*24*1) ";
-		}else if(order=='topw'){
-			firstseen = " AND messages.firstseen>"+sqltimestamp+"-(60*60*24*7) ";
-		}else if(order=='topm'){
-			firstseen = " AND messages.firstseen>"+sqltimestamp+"-(60*60*24*30) ";
-			if(topicnameHOSTILE == "" || topicnameHOSTILE == "mytopics"){firstseen+=" AND messages.likes>5 ";} //Makes sql query faster
-		}else if(order=='topy'){
-			firstseen = " AND messages.firstseen>"+sqltimestamp+"-(60*60*24*365) ";
-			if(topicnameHOSTILE == "" || topicnameHOSTILE == "mytopics"){firstseen+=" AND messages.likes>10 ";} //Makes sql query faster
-		}else if(order=='topa'){
+		var firstseen = " AND messages.firstseen>" + sqltimestamp + "-(60*60*24*7) ";
+
+		if (order == 'topd') {
+			firstseen = " AND messages.firstseen>" + sqltimestamp + "-(60*60*24*1) ";
+		} else if (order == 'topw') {
+			firstseen = " AND messages.firstseen>" + sqltimestamp + "-(60*60*24*7) ";
+		} else if (order == 'topm') {
+			firstseen = " AND messages.firstseen>" + sqltimestamp + "-(60*60*24*30) ";
+			if (topicnameHOSTILE == "" || topicnameHOSTILE == "mytopics") { firstseen += " AND messages.likes>5 "; } //Makes sql query faster
+		} else if (order == 'topy') {
+			firstseen = " AND messages.firstseen>" + sqltimestamp + "-(60*60*24*365) ";
+			if (topicnameHOSTILE == "" || topicnameHOSTILE == "mytopics") { firstseen += " AND messages.likes>10 "; } //Makes sql query faster
+		} else if (order == 'topa') {
 			firstseen = " ";
-			if(topicnameHOSTILE == "" || topicnameHOSTILE == "mytopics"){firstseen+=" AND messages.likes>10 ";} //Makes sql query faster
-		}else if(order=='new'){
-			if(topicnameHOSTILE != "" && topicnameHOSTILE != "mytopics" && topicnameHOSTILE != "myfeed" && filter!="myfeed")
-			firstseen = " ";
+			if (topicnameHOSTILE == "" || topicnameHOSTILE == "mytopics") { firstseen += " AND messages.likes>10 "; } //Makes sql query faster
+		} else if (order == 'new') {
+			if (topicnameHOSTILE != "" && topicnameHOSTILE != "mytopics" && topicnameHOSTILE != "myfeed" && filter != "myfeed")
+				firstseen = " ";
 		}
 
-		
-		sql = select + ` DISTINCT(messages.txid), messages.*,
+
+		sql = select + ` DISTINCT(messages.txid), mods2.address as moderated, messages.*,
 				name, 
 				rating, 
 		repliesdirect as replies,
@@ -165,6 +173,7 @@ dbqueries.getQuery = function (req, url,issqlite,escapeFunction,sqltimestamp) {
 		` + userratings + `
 		` + names + `
 		` + likesanddislikes + ` 
+		` + mods + `
 		` + followsORblocks + `
 		` + postsOrComments + `
 		` + topicquery + `
@@ -175,7 +184,7 @@ dbqueries.getQuery = function (req, url,issqlite,escapeFunction,sqltimestamp) {
 
 	//Notifications
 
-	var orderby = least+"/"+timedivisor;
+	var orderby = least + "/" + timedivisor;
 
 	if (type == "new" || action == "topic") {
 		orderby = " ORDER BY messages.firstseen ";
@@ -185,7 +194,10 @@ dbqueries.getQuery = function (req, url,issqlite,escapeFunction,sqltimestamp) {
 		sql = "SELECT * FROM names";
 	}
 
-	
+	if (action == "alertcount") {
+		sql = select + ` count(*) as count from notifications WHERE notifications.address='` + address + `'  AND time>` + since + `;`;
+	}
+
 	if (action == "notifications") {
 		sql = select + ` notifications.*,
 			names.name as originname,
@@ -248,7 +260,7 @@ dbqueries.getQuery = function (req, url,issqlite,escapeFunction,sqltimestamp) {
 			WHERE blocks IS NULL
 			AND notifications.address='` + qaddress + `' 
 			AND notifications.address <> notifications.origin 
-			AND notifications.time>`+sqltimestamp+`-(60*60*24*21)
+			AND notifications.time>`+ sqltimestamp + `-(60*60*24*21)
 			ORDER BY notifications.time DESC LIMIT ` + start + `,` + limit;
 	}
 
@@ -288,7 +300,7 @@ dbqueries.getQuery = function (req, url,issqlite,escapeFunction,sqltimestamp) {
 	if (action == "posts" || action == "comments") //be very careful with this, topicname may contain special characters
 	{
 		var topicquery = " ";
-		var firstseen = " AND messages.firstseen>"+sqltimestamp+"-(60*60*48) ";
+		var firstseen = " AND messages.firstseen>" + sqltimestamp + "-(60*60*48) ";
 		var topicname = (queryData.topicname || '');
 
 		if (topicname != "") {
@@ -317,13 +329,13 @@ dbqueries.getQuery = function (req, url,issqlite,escapeFunction,sqltimestamp) {
 
 	//Threads
 
-	var threadorder = " ORDER BY (LEAST(messages.likes,10)-LEAST(messages.dislikes,10)+LEAST(replies-1,10)+LEAST((messages.tips/10000),10))/"+timedivisor+" DESC";
-	if(issqlite)threadorder=" ORDER BY (MIN(messages.likes,10)-MIN(messages.dislikes,10)+MIN(replies-1,10)+MIN((messages.tips/10000),10))/"+timedivisor+" DESC";
+	var threadorder = " ORDER BY (LEAST(messages.likes,10)-LEAST(messages.dislikes,10)+LEAST(replies-1,10)+LEAST((messages.tips/10000),10))/" + timedivisor + " DESC, moderated DESC";
+	if (issqlite) threadorder = " ORDER BY (MIN(messages.likes,10)-MIN(messages.dislikes,10)+MIN(replies-1,10)+MIN((messages.tips/10000),10))/" + timedivisor + " DESC, moderated DESC";
 	if (action == "thread") {
-		if(txid.length<10){
-			txid="nodice";
+		if (txid.length < 10) {
+			txid = "nodice";
 		}
-		sql = select + ` messages.*,
+		sql = select + ` DISTINCT(messages.txid), messages.*, mods2.address as moderated,
 		blocks.trxid as blockstxid,
 		name,
 		rating,
@@ -331,11 +343,12 @@ dbqueries.getQuery = function (req, url,issqlite,escapeFunction,sqltimestamp) {
 		likesdislikes.txid as likedtxid, 
 		likesdislikes.type as likeordislike  
 		FROM messages as messages3
-		LEFT JOIN messages ON messages.roottxid=messages3.roottxid
-		` + userratings + ` 
-		` + names + `
-		` + likesanddislikes + `
-		LEFT JOIN blocks ON messages.address=blocks.blocks AND blocks.address='` + address + `' WHERE 1=1  
+		LEFT JOIN messages ON messages.roottxid=messages3.roottxid ` 
+		+ userratings 
+		+ names
+		+ likesanddislikes
+		+ mods
+		+ `LEFT JOIN blocks ON messages.address=blocks.blocks AND blocks.address='` + address + `' WHERE 1=1  
 		AND messages3.txid LIKE '` + txid + `%' AND messages3.roottxid!='' ` + threadorder;
 	}
 
@@ -448,9 +461,14 @@ dbqueries.getQuery = function (req, url,issqlite,escapeFunction,sqltimestamp) {
 	}
 
 	if (action == `topiclist`) {
-		sql = select + ` *, topics.topic as topicname FROM topics
-			LEFT JOIN subs on topics.topic=subs.topic AND subs.address='` + qaddress + `'
-			ORDER BY time DESC, ((messagescount+subscount*10)/((((`+sqltimestamp+`-mostrecent)/(60*60))+2))*((((`+sqltimestamp+`-mostrecent)/(60*60))+2))) DESC
+		//sublasttime is added here to keep mysql happy
+		//subs.time as sublasttime
+		sql = select + `DISTINCT(allmods.modr), topics.*, topics.topic as topicname, subs.address as address, allmods.modr as existingmod, mymods.address as existingmodaddress, names.name as existingmodname FROM topics 
+			LEFT JOIN subs on (topics.topic=subs.topic OR topics.topic='') AND subs.address='` + qaddress + `'
+			LEFT JOIN mods as allmods on allmods.topic=topics.topic and (allmods.modr=allmods.address)
+			LEFT JOIN names on names.address=allmods.modr
+			LEFT JOIN mods as mymods on allmods.modr =mymods.modr and mymods.address=subs.address 
+			ORDER BY (topicname='') DESC, (subs.address='') DESC, ((messagescount+subscount*10)/((((`+ sqltimestamp + `-mostrecent)/(60*60))+2))*((((` + sqltimestamp + `-mostrecent)/(60*60))+2))) DESC
 			LIMIT 0,200`;
 	}
 
@@ -485,6 +503,13 @@ dbqueries.getQuery = function (req, url,issqlite,escapeFunction,sqltimestamp) {
 
 	if (action == "bootstrap3") {
 		sql = "SELECT name,address as testaddress,(select rating from userratings where address = '" + qaddress + "' AND rates=testaddress) as rating, (select name from names where address = '" + qaddress + "') as ratername from names where name LIKE '%Surrogate%'";
+	}
+
+	if(action == "usersearch"){
+		topicname = topicname;
+		var usersearchHOSTILE = "%"+(queryData.searchterm.toLowerCase() || '')+"%";
+		//Searching the pagingid rather than the name for case insensitive search
+		sql = "SELECT names.*, userratings.rating as rating from names LEFT JOIN userratings ON names.address = userratings.rates AND userratings.address='" + address + "' where pagingid like "+escapeFunction(usersearchHOSTILE)+" LIMIT 10";
 	}
 
 	return sql;
