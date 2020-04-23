@@ -101,7 +101,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           var name = fromHex(messages[0]);
           name = name.substr(0, MAXMESSAGE);
           var sentFrom = getFirstSendingAddressFromTX(tx.ins[0]);
-
+          var publicKey = getFirstPublicKeyFromTX(tx.ins[0]);
           //members autofollow themselves when they set their name 
           sql.push(insertignore + " into follows VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(sentFrom) + "," + escapeFunction(txid) + "," + escapeFunction(time) + ");");
 
@@ -114,15 +114,15 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           //After Sept 1st 2019, names cannot be changed.
           if (time < 1567299601) {
             if (issqlite) {
-              sql.push("insert into names VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(name) + "," + escapeFunction(txid) + ",'',''," + escapeFunction(pagename) + ") ON CONFLICT(address) DO UPDATE SET name=" + escapeFunction(name) + ", nametxid=" + escapeFunction(txid) + ", pagingid=" + escapeFunction(pagename) + ";");
+              sql.push("insert into names VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(name) + "," + escapeFunction(txid) + ",'',''," + escapeFunction(pagename) + "," + escapeFunction(publicKey) + ") ON CONFLICT(address) DO UPDATE SET name=" + escapeFunction(name) + ", nametxid=" + escapeFunction(txid) + ", pagingid=" + escapeFunction(pagename) + ", publickey=" + escapeFunction(publicKey) + ";");
             } else {
-              sql.push("insert into names VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(name) + "," + escapeFunction(txid) + ",'',''," + escapeFunction(pagename) + ") ON DUPLICATE KEY UPDATE name=" + escapeFunction(name) + ", nametxid=" + escapeFunction(txid) + ", pagingid=" + escapeFunction(pagename) + ";");
+              sql.push("insert into names VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(name) + "," + escapeFunction(txid) + ",'',''," + escapeFunction(pagename) + "," + escapeFunction(publicKey) + ") ON DUPLICATE KEY UPDATE            name=" + escapeFunction(name) + ", nametxid=" + escapeFunction(txid) + ", pagingid=" + escapeFunction(pagename) + ", publickey=" + escapeFunction(publicKey) + ";");
             }
             return sql;
           } else {
-            sql.push(insertignore + " into names VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(name) + "," + escapeFunction(txid) + ",'',''," + escapeFunction(pagename) + ") ;");
+            sql.push(insertignore + " into names VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(name) + "," + escapeFunction(txid) + ",'',''," + escapeFunction(pagename) + "," + escapeFunction(publicKey) + ") ;");
             //If profile is already set, but name is not need to update values because previous statement will have been ignored
-            sql.push("UPDATE names set name=" + escapeFunction(name) + ", nametxid=" + escapeFunction(txid) + ", pagingid=" + escapeFunction(pagename) + " WHERE name='' AND address=" + escapeFunction(sentFrom) + ";");
+            sql.push("UPDATE names set name=" + escapeFunction(name) + ", nametxid=" + escapeFunction(txid) + ", pagingid=" + escapeFunction(pagename) + ", publickey=" + escapeFunction(publicKey) + " WHERE name='' AND address=" + escapeFunction(sentFrom) + ";");
             return sql;
           }
           break;
@@ -292,12 +292,13 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
         case "8d05":
           var profiletext = fromHex(messages[0]);
           profiletext = profiletext.substr(0, MAXMESSAGE);
+          var publicKey = getFirstPublicKeyFromTX(tx.ins[0]);
 
           var sentFrom = getFirstSendingAddressFromTX(tx.ins[0]);
           if (issqlite) {
-            sql.push("insert into names VALUES (" + escapeFunction(sentFrom) + ",'',''," + escapeFunction(profiletext) + "," + escapeFunction(txid) + ",'') ON CONFLICT(address) DO UPDATE SET profile=" + escapeFunction(profiletext) + ", protxid=" + escapeFunction(txid) + ";");
+            sql.push("insert into names VALUES (" + escapeFunction(sentFrom) + ",'',''," + escapeFunction(profiletext) + "," + escapeFunction(txid) + ",''," + escapeFunction(publicKey) + ") ON CONFLICT(address) DO UPDATE SET profile=" + escapeFunction(profiletext) + ", protxid=" + escapeFunction(txid) + ";");
           } else {
-            sql.push("insert into names VALUES (" + escapeFunction(sentFrom) + ",'',''," + escapeFunction(profiletext) + "," + escapeFunction(txid) + ",'') ON DUPLICATE KEY UPDATE profile=" + escapeFunction(profiletext) + ", protxid=" + escapeFunction(txid) + ";");
+            sql.push("insert into names VALUES (" + escapeFunction(sentFrom) + ",'',''," + escapeFunction(profiletext) + "," + escapeFunction(txid) + ",''," + escapeFunction(publicKey) + ") ON DUPLICATE KEY UPDATE profile=" + escapeFunction(profiletext) + ", protxid=" + escapeFunction(txid) + ";");
           }
           return sql;
           break;
@@ -451,7 +452,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           var address = bs58check.encode(Buffer.from("00" + messages[0], 'hex'));
           address = address.substr(0, MAXADDRESS);
           var sentFrom = getFirstSendingAddressFromTX(tx.ins[0]);
-          var topic="";          
+          var topic = "";
           if (messages.length > 1) {
             var decode = fromHex(messages[1]);
             var topic = decode.toLowerCase();
@@ -463,21 +464,21 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
         case "6dc2": //Dismiss moderater 	0x6dc2 	address(20), topic
           var address = bs58check.encode(Buffer.from("00" + messages[0], 'hex'));
           address = address.substr(0, MAXADDRESS);
-          var sentFrom = getFirstSendingAddressFromTX(tx.ins[0]);          
-          var topic="";
+          var sentFrom = getFirstSendingAddressFromTX(tx.ins[0]);
+          var topic = "";
           if (messages.length > 1) {
             var decode = fromHex(messages[1]);
             var topic = decode.toLowerCase();
             topic = topic.substr(0, MAXMESSAGE);
           }
-          sql.push("delete from mods WHERE modr=" + escapeFunction(address) + " AND address=" + escapeFunction(sentFrom) +" AND topic=" + escapeFunction(topic)+ ";");
+          sql.push("delete from mods WHERE modr=" + escapeFunction(address) + " AND address=" + escapeFunction(sentFrom) + " AND topic=" + escapeFunction(topic) + ";");
           return sql;
           break;
         case "6dc3": //Hide User 	0x6dc3 	address(20), topic
           var address = bs58check.encode(Buffer.from("00" + messages[0], 'hex'));
           address = address.substr(0, MAXADDRESS);
           var sentFrom = getFirstSendingAddressFromTX(tx.ins[0]);
-          var topic="";          
+          var topic = "";
           if (messages.length > 1) {
             var decode = fromHex(messages[1]);
             var topic = decode.toLowerCase();
@@ -490,13 +491,13 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           var address = bs58check.encode(Buffer.from("00" + messages[0], 'hex'));
           address = address.substr(0, MAXADDRESS);
           var sentFrom = getFirstSendingAddressFromTX(tx.ins[0]);
-          var topic="";          
+          var topic = "";
           if (messages.length > 1) {
             var decode = fromHex(messages[1]);
             var topic = decode.toLowerCase();
             topic = topic.substr(0, MAXMESSAGE);
           }
-          sql.push("delete from hiddenusers WHERE modr=" + escapeFunction(sentFrom) + " AND address=" + escapeFunction(address) +" AND topic=" + escapeFunction(topic)+ ";");
+          sql.push("delete from hiddenusers WHERE modr=" + escapeFunction(sentFrom) + " AND address=" + escapeFunction(address) + " AND topic=" + escapeFunction(topic) + ";");
           return sql;
           break;
 
@@ -559,6 +560,12 @@ function getFirstSendingAddressFromTX(txin) {
   var chunksIn = bitcoinJs.script.decompile(txin.script);
   var address = bitcoinJs.ECPair.fromPublicKeyBuffer(chunksIn[1]).getAddress();
   return address;
+}
+
+function getFirstPublicKeyFromTX(txin) {
+  var chunksIn = bitcoinJs.script.decompile(txin.script);
+  var publicKey = bitcoinJs.ECPair.fromPublicKeyBuffer(chunksIn[1]).getPublicKeyBuffer().toString('hex');
+  return publicKey;
 }
 
 function getAmountFromTXOUT(txout) {

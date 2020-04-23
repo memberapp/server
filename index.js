@@ -37,6 +37,7 @@ var run = async function () {
   var secondsToWaitBetweenProcessingBlocks = config.secondsToWaitBetweenProcessingBlocks;
   var secondsToWaitBetweenPollingNextBlock = config.secondsToWaitBetweenPollingNextBlock;
   var secondsToWaitBetweenPollingMemPool = config.secondsToWaitBetweenPollingMemPool;
+  var secondsToWaitBetweenErrorOnBlocks = 1; //todo make configurable
   var rpcconfig = config.rpcconfig;
   var dbconfig = config.dbconfig;
   var dbname = dbconfig.database;
@@ -333,8 +334,11 @@ var run = async function () {
   function processBlockIntoDB(err, ret) {
     if (err) {
       console.log(err);
+      if(err.code==-1){//Pruned block?
+        currentBlock++;
+      }
       console.log("Wait " + secondsToWaitBetweenProcessingBlocks + " seconds");
-      return setTimeout(fetchAndProcessBlocksIntoDB, secondsToWaitBetweenProcessingBlocks * 1000);
+      return setTimeout(fetchAndProcessBlocksIntoDB, secondsToWaitBetweenErrorOnBlocks * 1000);
     }
     takeBlockHexTransactionsAndPutThemInTheDB(ret.result);
   }
