@@ -453,7 +453,7 @@ var run = async function () {
     }
 
     if (err) {
-      console.error("dberror 2;" + err);
+      console.log("dberror 2;" + err);
       console.log("Wait 60 Seconds");
       currentBlock = lastBlockSuccessfullyProcessed + 1;
       return setTimeout(fetchAndProcessBlocksIntoDB, 60000);

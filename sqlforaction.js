@@ -69,6 +69,13 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
     var hex = tx.outs[i].script.toString('hex');
     var sql = [];
 
+    //write the raw trx to db for future use
+    if(hex.startsWith("6a02") || hex.startsWith("6a04534c500001010747454e45534953")){
+      if(hex.length>0 && hex.length<51200){
+        sql.push(insertignore + " into transactions VALUES (" + escapeFunction(txid) + "," + escapeFunction(hex.substr(0,8)) + "," + escapeFunction(hex) + "," + escapeFunction(time)+");");    
+      }
+    }
+
     if (hex.startsWith("6a04534c500001010747454e45534953")) {
       //SLP creation transaction
       var messages = processOPDATA(hex.substring(12), 20);
@@ -524,7 +531,6 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
     }
   }
 
-  //write the raw trx to db for future use
   return sql;
 }
 
