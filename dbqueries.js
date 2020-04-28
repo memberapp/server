@@ -343,12 +343,12 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		likesdislikes.txid as likedtxid, 
 		likesdislikes.type as likeordislike  
 		FROM messages as messages3
-		LEFT JOIN messages ON messages.roottxid=messages3.roottxid ` 
-		+ userratings 
-		+ names
-		+ likesanddislikes
-		+ mods
-		+ `LEFT JOIN blocks ON messages.address=blocks.blocks AND blocks.address='` + address + `' WHERE 1=1  
+		LEFT JOIN messages ON messages.roottxid=messages3.roottxid `
+			+ userratings
+			+ names
+			+ likesanddislikes
+			+ mods
+			+ `LEFT JOIN blocks ON messages.address=blocks.blocks AND blocks.address='` + address + `' WHERE 1=1  
 		AND messages3.txid LIKE '` + txid + `%' AND messages3.roottxid!='' ` + threadorder;
 	}
 
@@ -505,11 +505,23 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		sql = "SELECT name,address as testaddress,(select rating from userratings where address = '" + qaddress + "' AND rates=testaddress) as rating, (select name from names where address = '" + qaddress + "') as ratername from names where name LIKE '%Surrogate%'";
 	}
 
-	if(action == "usersearch"){
+	if (action == "usersearch") {
 		topicname = topicname;
-		var usersearchHOSTILE = "%"+(queryData.searchterm.toLowerCase() || '')+"%";
+		var usersearchHOSTILE = "%" + (queryData.searchterm.toLowerCase() || '') + "%";
 		//Searching the pagingid rather than the name for case insensitive search
-		sql = "SELECT names.*, userratings.rating as rating from names LEFT JOIN userratings ON names.address = userratings.rates AND userratings.address='" + address + "' where pagingid like "+escapeFunction(usersearchHOSTILE)+" LIMIT 10";
+		sql = "SELECT names.*, userratings.rating as rating from names LEFT JOIN userratings ON names.address = userratings.rates AND userratings.address='" + address + "' where pagingid like " + escapeFunction(usersearchHOSTILE) + " LIMIT 10";
+	}
+
+	if (action == "messages") {
+		sql = `SELECT *,
+				names.name as name, 
+				userratings.rating as rating 
+				from privatemessages
+			    LEFT JOIN names ON privatemessages.address=names.address
+				LEFT JOIN userratings ON userratings.address='` + address + `' AND privatemessages.address=userratings.rates 
+					WHERE privatemessages.toaddress='` + address + `' 
+					ORDER BY privatemessages.firstseen 
+					DESC `;
 	}
 
 	return sql;
