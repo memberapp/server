@@ -190,9 +190,9 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		orderby = " ORDER BY messages.firstseen ";
 	}
 
-	if (action == "names") {
+	/*if (action == "names") {
 		sql = "SELECT * FROM names";
-	}
+	}*/
 
 	if (action == "alertcount") {
 		sql = select + ` count(*) as count from notifications WHERE notifications.address='` + address + `'  AND time>` + since + `;`;
@@ -453,7 +453,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			INNER JOIN (SELECT count(*) as 'followers' FROM follows where follows='` + qaddress + `') as f2 
 			INNER JOIN (SELECT count(*) as 'blocking' FROM blocks where address='` + qaddress + `') as b1 
 			INNER JOIN (SELECT count(*) as 'blockers' FROM blocks where blocks='` + qaddress + `') as b2 
-			INNER JOIN (SELECT name, profile, pagingid FROM names where address='` + qaddress + `') as t3 
+			INNER JOIN (SELECT name, profile, pagingid, publickey FROM names where address='` + qaddress + `') as t3 
 			INNER JOIN (SELECT count(*) as 'isfollowing' FROM follows where address='` + address + `' AND follows='` + qaddress + `') as t4 
 			INNER JOIN (SELECT count(*) as 'isblocked' FROM blocks where address='` + address + `' AND blocks='` + qaddress + `') as t5 
 			INNER JOIN (SELECT reason as 'ratingreason',SUM(rating) as 'rating' FROM userratings where address='` + address + `' AND rates='` + qaddress + `') as r1 
@@ -514,7 +514,8 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 
 	if (action == "messages") {
 		sql = `SELECT *,
-				names.name as name, 
+				names.name as name,
+				privatemessages.address as senderaddress, 
 				userratings.rating as rating 
 				from privatemessages
 			    LEFT JOIN names ON privatemessages.address=names.address
