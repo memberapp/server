@@ -23,7 +23,8 @@ var bs58check = require('bs58check');
 
 const MAXADDRESS = 35;
 const MAXTXID = 64;
-const MAXMESSAGE = 220
+const MAXMESSAGE = 220;
+const MAXHEXMESSAGE = 440;
 const MAXGEOHASH = 16;
 
 function processOPDATA(hexdata, maxterms) {
@@ -68,6 +69,13 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
 
     var hex = tx.outs[i].script.toString('hex');
     var sql = [];
+
+    //write the raw trx to db for future use
+    if (hex.startsWith("6a02") || hex.startsWith("6a04534c500001010747454e45534953")) {
+      if (hex.length > 0 && hex.length < 51200) {
+        sql.push(insertignore + " into transactions VALUES (" + escapeFunction(txid) + "," + escapeFunction(hex.substr(0, 8)) + "," + escapeFunction(hex) + "," + escapeFunction(time) + ");");
+      }
+    }
 
     if (hex.startsWith("6a04534c500001010747454e45534953")) {
       //SLP creation transaction
@@ -517,6 +525,41 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           sql.push("delete from hiddenposts WHERE modr=" + escapeFunction(sentFrom) + " AND txid=" + escapeFunction(retxid) + ";");
           return sql;
           break;
+        case "6dd0": //private message
+          var messagetext = messages[0];
+          messagetext = messagetext.substr(0, MAXHEXMESSAGE);
+          var sentFrom = getFirstSendingAddressFromTX(tx.ins[0]);
+          try {
+            var tipto = getAddressFromTXOUT(tx.outs[i + 1]);
+            var amount = getAmountFromTXOUT(tx.outs[i + 1]);
+            sql.push(insertignore + " into privatemessages VALUES (" + escapeFunction(txid) + "," + escapeFunction('') + "," + escapeFunction(txid) + "," + escapeFunction(sentFrom) + "," + escapeFunction(messagetext) + "," + escapeFunction(tipto) + "," + escapeFunction(amount) + "," + escapeFunction(time) + ");");
+          } catch (error) {
+            //console.log("No Tip: ");
+            //Nothing to do here
+          }
+
+          return sql;
+          break;
+        case "6dd1": //private message cont
+          var retxid;
+          retxid = messages[0].match(/[a-fA-F0-9]{2}/g).reverse().join('');
+          retxid = retxid.substr(0, MAXTXID);
+          var messagetext = messages[1];
+          messagetext = messagetext.substr(0, MAXHEXMESSAGE);
+          var sentFrom = getFirstSendingAddressFromTX(tx.ins[0]);
+          sql.push(insertignore + " into privatemessages VALUES (" + escapeFunction(txid) + "," + escapeFunction(retxid) + "," + escapeFunction('') + "," + escapeFunction(sentFrom) + "," + escapeFunction(messagetext) + "," + escapeFunction('') + "," + escapeFunction('') + "," + escapeFunction(time)  + ");");
+
+          //Make sure reply has the same roottxid and topic as parent, sometimes this won't be available, there is a housekeeping operation to fill it in later if so
+          if(issqlite){
+            sql.push("UPDATE privatemessages SET (roottxid,toaddress,stamp) = (SELECT m.roottxid, m.toaddress, m.stamp FROM privatemessages m WHERE txid=" + escapeFunction(retxid) + ") WHERE privatemessages.txid=" + escapeFunction(txid) + " AND privatemessages.address=" + escapeFunction(sentFrom) + ";");
+          }else{
+            sql.push("UPDATE privatemessages JOIN privatemessages parent ON privatemessages.retxid=parent.txid SET privatemessages.roottxid = parent.roottxid, privatemessages.toaddress = parent.toaddress, privatemessages.stamp = parent.stamp WHERE privatemessages.address = " + escapeFunction(sentFrom) + " AND privatemessages.txid=" + escapeFunction(txid) + ";");
+          }
+
+          return sql;
+
+          break;
+
 
         default:
           break;
@@ -524,7 +567,6 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
     }
   }
 
-  //write the raw trx to db for future use
   return sql;
 }
 

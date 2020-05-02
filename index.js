@@ -19,9 +19,9 @@
 var run = async function () {
 
   //App includes
-  try{
+  try {
     var config = require(process.cwd() + '/../memberprivateconfig.js');
-  }catch(e){
+  } catch (e) {
     var config = require(process.cwd() + '/config.js');
   }
   var sqlforaction = require('./sqlforaction.js');
@@ -126,9 +126,12 @@ var run = async function () {
       expensiveHousekeepingSQLOperations.push([`UPDATE messages SET roottxid=txid WHERE roottxid IS NULL AND retxid ='' AND ` + timestampSQL + `-firstseen > 60*60*24;`, `UPDATE messages SET roottxid=txid WHERE roottxid IS NULL AND ` + timestampSQL + `-firstseen > 60*60*48;`]);
 
       //This is a lighter housekeeping operation, can run frequently, ensure messages are linked back to their root disscussion topic
-      var fixOrphanMessages = "UPDATE messages JOIN messages parent ON messages.retxid=parent.txid SET messages.roottxid = parent.roottxid, messages.topic = parent.topic WHERE messages.roottxid = '';";
+      var fixOrphanMessages =  "UPDATE messages JOIN messages parent ON messages.retxid=parent.txid SET messages.roottxid = parent.roottxid, messages.topic = parent.topic WHERE messages.roottxid = '';";
+      var fixOrphanMessages2 = "UPDATE privatemessages JOIN privatemessages parent ON privatemessages.retxid=parent.txid SET privatemessages.roottxid = parent.roottxid, privatemessages.toaddress = parent.toaddress, privatemessages.stamp = parent.stamp WHERE privatemessages.roottxid = '' AND privatemessages.address=parent.address;";
+      
       if (usesqlite) {
         fixOrphanMessages = "UPDATE messages SET (roottxid,topic) = (SELECT p.roottxid, p.topic FROM messages p WHERE messages.retxid=p.txid) WHERE messages.roottxid IS NULL;";
+        fixOrphanMessages2 = "UPDATE privatemessages SET (roottxid,toaddress,stamp) = (SELECT m.roottxid, m.toaddress, m.stamp FROM privatemessages m WHERE privatemessages.retxid=m.txid AND privatemessages.address=m.address) WHERE privatemessages.roottxid IS NULL;";
       }
     }
 
@@ -188,13 +191,6 @@ var run = async function () {
     //Use only for initial sync
     await dbbc.run("PRAGMA synchronous = OFF");
 
-    //MEMORY — the rollback journal is kept in RAM and doesn’t use the disk subsystem. 
-    //Such mode provides more significant performance increase when working with log. 
-    //However, in case of any failures within a transaction, data in the DB will be 
-    //corrupted with high probability due to a lack of saved data copy on the disk.
-    //Use only for initial sync
-    await dbbc.run("PRAGMA JOURNAL_MODE = MEMORY");
-
     //Block with first memo transaction
     currentBlock = 525471;
 
@@ -208,6 +204,17 @@ var run = async function () {
     if (overrideStartBlock) {
       currentBlock = overrideStartBlock;
     }
+
+    if (currentBlock < 600000) {
+      //MEMORY — the rollback journal is kept in RAM and doesn’t use the disk subsystem. 
+      //Such mode provides more significant performance increase when working with log. 
+      //However, in case of any failures within a transaction, data in the DB will be 
+      //corrupted with high probability due to a lack of saved data copy on the disk.
+      //Use only if there are a lot more blocks to process
+      await dbbc.run("PRAGMA JOURNAL_MODE = MEMORY");
+    }
+
+
     lastBlockSuccessfullyProcessed = currentBlock - 1;
     fetchAndProcessBlocksIntoDB();
   }
@@ -334,7 +341,7 @@ var run = async function () {
   function processBlockIntoDB(err, ret) {
     if (err) {
       console.log(err);
-      if(err.code==-1){//Pruned block?
+      if (err.code == -1) {//Pruned block?
         currentBlock++;
       }
       console.log("Wait " + secondsToWaitBetweenProcessingBlocks + " seconds");
@@ -453,7 +460,7 @@ var run = async function () {
     }
 
     if (err) {
-      console.error("dberror 2;" + err);
+      console.log("dberror 2;" + err);
       console.log("Wait 60 Seconds");
       currentBlock = lastBlockSuccessfullyProcessed + 1;
       return setTimeout(fetchAndProcessBlocksIntoDB, 60000);
@@ -521,9 +528,9 @@ var run = async function () {
 
   function putSingleTransactionIntoSQLglobalvars(rawtx) {
     var timeStampInMs = Math.floor(Date.now() / 1000);
-    try{
+    try {
       var transaction = bitcoinJs.Transaction.fromHex(rawtx);
-    }catch(e){
+    } catch (e) {
       console.log(e);
       console.log(rawtx);
       return;
@@ -547,6 +554,8 @@ var run = async function () {
 
     //FixOrphans probably doesn't need to be run so frequently and should probably be on its own thread
     mempoolSQL.push(fixOrphanMessages);
+    mempoolSQL.push(fixOrphanMessages2);
+    
 
     if (usesqlite) {
       try {
@@ -768,20 +777,20 @@ var run = async function () {
           //Workaround is to flag results in 'moderated' column and remove them here.
           //Note, following a moderated result, the next result can also be a result that
           //has the same txid and should be moderated, although the moderated field is null.
-          var moderatedtxid="none";
-          for(var i=0;i<rows.length;i++){
-            
+          var moderatedtxid = "none";
+          for (var i = 0; i < rows.length; i++) {
+
             //Check a result has been directly moderated
-            if(rows[i].moderated!=null && rows[i].moderated!=""){
-              moderatedtxid=rows[i].txid;
-              rows.splice(i,1);
+            if (rows[i].moderated != null && rows[i].moderated != "") {
+              moderatedtxid = rows[i].txid;
+              rows.splice(i, 1);
               i--;
               continue;
             }
 
             //Check if a similar result has been returned directly following the moderated result
-            if(rows[i].txid==moderatedtxid){
-              rows.splice(i,1);
+            if (rows[i].txid == moderatedtxid) {
+              rows.splice(i, 1);
               i--;
               continue;
             }
