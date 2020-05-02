@@ -42,6 +42,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 
 	//Numeric positive integer
 	var since = Number((queryData.since || '0').replace(/[^0-9]+/g, ""));
+	var sincepm = Number((queryData.sincepm || '0').replace(/[^0-9]+/g, ""));
 	var start = Number((queryData.start || '0').replace(/[^0-9]+/g, ""));
 	var limit = Number((queryData.limit || '25').replace(/[^0-9]+/g, ""));
 
@@ -195,7 +196,9 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 	}*/
 
 	if (action == "alertcount") {
-		sql = select + ` count(*) as count from notifications WHERE notifications.address='` + address + `'  AND time>` + since + `;`;
+		var sel1 = select + ` count(*) from notifications   WHERE notifications.address='` + address + `'  AND time>` + since + ``;
+		var sel2 = select + ` count(distinct roottxid) from privatemessages where toaddress='` + address + `' and firstseen>` + sincepm + ``;
+		sql = select + ` (` + sel1 + `) as count, (` + sel2 + `) as countpm;`;
 	}
 
 	if (action == "notifications") {
