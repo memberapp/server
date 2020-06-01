@@ -16,9 +16,10 @@ Using Binaries
 
 Using Node
 1. Edit the config.js file to include your BCH node user/pass 
-2. Run 'node index.js'
-3. Wait for it to get up to date 
-4. Open release/index.html in your browser
+2. Install dependencies (if necessary) 'npm install bitcoind-rpc bitcoinjs-lib mysql sqlite-async grpc @grpc/proto-loader'
+3. Run 'node index.js'
+4. Wait for it to get up to date 
+5. Open release/index.html in your browser
 
 
 Member Server will use SQLite by default and this is the recommended database to use.
