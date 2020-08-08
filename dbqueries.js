@@ -332,8 +332,8 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 
 	//Threads
 
-	var threadorder = " ORDER BY (LEAST(messages.likes,10)-LEAST(messages.dislikes,10)+LEAST(replies-1,10)+LEAST((messages.tips/10000),10))/" + timedivisor + " DESC, moderated DESC";
-	if (issqlite) threadorder = " ORDER BY (MIN(messages.likes,10)-MIN(messages.dislikes,10)+MIN(replies-1,10)+MIN((messages.tips/10000),10))/" + timedivisor + " DESC, moderated DESC";
+	var threadorder = " ORDER BY (LEAST(messages.likes,10)-LEAST(messages.dislikes,10)+LEAST(replies-1,10)+LEAST((messages.tips/10000),10))/" + timedivisor + " DESC, firstseen DESC, moderated DESC";
+	if (issqlite) threadorder = " ORDER BY (MIN(messages.likes,10)-MIN(messages.dislikes,10)+MIN(replies-1,10)+MIN((messages.tips/10000),10))/" + timedivisor + " DESC, firstseen DESC, moderated DESC";
 	if (action == "thread") {
 		if (txid.length < 10) {
 			txid = "nodice";
