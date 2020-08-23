@@ -783,8 +783,9 @@ var run = async function () {
             //Check a result has been directly moderated
             if (rows[i].moderated != null && rows[i].moderated != "") {
               moderatedtxid = rows[i].txid;
-              rows.splice(i, 1);
-              i--;
+              //Return the moderated results for now, client can decide how to deal with them
+              //rows.splice(i, 1);
+              //i--;
               continue;
             }
 
