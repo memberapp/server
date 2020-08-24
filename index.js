@@ -778,6 +778,7 @@ var run = async function () {
           //Note, following a moderated result, the next result can also be a result that
           //has the same txid and should be moderated, although the moderated field is null.
           var moderatedtxid = "none";
+          var totalRowLength=rows.length;
           for (var i = 0; i < rows.length; i++) {
 
             //Check a result has been directly moderated
@@ -799,6 +800,7 @@ var run = async function () {
           }
 
           if (rows.length > 0) {
+            rows[0].unduplicatedlength=totalRowLength;
             rows[0].msc = msc;
             rows[0].query = query.replace(/\t/g, ' ').replace(/\n/g, ' ');
           }
