@@ -8,18 +8,18 @@ var config = {};
 
 //Local Bitcoin Node / (RPC server)
 config.rpcconfig = {
-  protocol: 'http',
-  user: 'username',
-  pass: 'password',
-  host: '127.0.0.1',
-  port: '8334',
+  protocol: process.env.BCH_NODE_SCHEME || 'http',
+  user: process.env.BCH_NODE_USER || 'username',
+  pass: process.env.BCH_NODE_PASSWORD || 'password',
+  host: process.env.BCH_NODE_HOST || '127.0.0.1',
+  port: process.env.BCH_NODE_PORT || '8334',
 };
-config.acceptmaxtrxsize = 5120; // 5K (allowing for numerous inputs, in the case of a big tip)
+config.acceptmaxtrxsize = 51200; // 50K (allowing for numerous inputs, in the case of a big tip)
 
 //BCHD UTXO server
-//BCHD GRPC server can be used to fetch UTXOs, requires BCHD txindex
-config.bchdgrpcenabled = false; 
-config.bchdhost = 'yourbchdgrpcserver.org:8335';
+//BCHD GRPC server can be used to fetch UTXOs, requires BCHD txindex=1 and addrindex=1
+config.bchdgrpcenabled = true;
+config.bchdhost = 'bchd.greyh.at:8335';
 
 //Processing throttle
 config.secondsToWaitonStart = 1;
@@ -40,7 +40,7 @@ config.certpem = "/etc/letsencrypt/live/xxxxxxxx/cert.pem";
 
 //Database
 config.usesqlite = true; //Setting this to false will use MYSQL instead
-config.sqldbfile = "member.db";
+config.sqldbfile = "data/member.db";
 
 //mysql db server
 config.dbconfig = {
@@ -51,10 +51,12 @@ config.dbconfig = {
   database: "member",
 };
 
-
-//Usually the processing will start where it left off,
-//you can override this by setting a startBlock.
+//This setting should usually be set to null
+//The first time it is run, it will start at block 525471
+//Following that, the processing will start where it left off
 config.startBlock = null;
+
+//you can override this by setting a startBlock.
 //config.startBlock = 525471; //first memo trx
 //config.startBlock = 525590; //name
 //config.startBlock = 525704; //follows

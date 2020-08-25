@@ -6,8 +6,8 @@ const Buffer = buffer.Buffer;
 const BITBOX = bitboxSdk;
 
 //Note, these can be overwritten in config.js
-let utxoServer = "https://rest.bitcoin.com/v2/";
-let txbroadcastServer = "https://rest.bitcoin.com/v2/";
+//let utxoServer = "https://rest.bitcoin.com/v2/";
+//let txbroadcastServer = "https://rest.bitcoin.com/v2/";
 
 //These are variable
 let extraSatoshis = 5;
@@ -19,17 +19,21 @@ let miningFeeMultiplier = 1;
 
 class UTXOPool {
 
-  constructor(address, statusMessageFunction, storageObject) {
+  constructor(address, statusMessageFunction, storageObject, onscreenElementName) {
     //This takes legacy address format
     this.theAddress = address;
     this.utxoPool = {};
     this.statusMessageFunction = statusMessageFunction;
     this.storageObject = storageObject;
 
+    //these two are a bit hacky and break encapsulation
+    this.onscreenElementName = onscreenElementName;
+    this.showwarning=true;
+
     //Try to retrieve utxopool from localstorage and set balance
     try {
       if (this.storageObject != null) {
-        let loadup = JSON.parse(localStorageGet(this.storageObject, "utxopool"));
+        let loadup = JSON.parse(localStorageGet(this.storageObject, "utxopool" + this.theAddress));
         if (loadup != "null" && loadup != null && loadup != "") {
           this.utxoPool = loadup;
           this.updateBalance();
@@ -80,7 +84,7 @@ class UTXOPool {
 
     try {
       if (this.storageObject != undefined && this.storageObject != null) {
-        localStorageSet(this.storageObject, "utxopool", JSON.stringify(this.utxoPool));
+        localStorageSet(this.storageObject, "utxopool" + this.theAddress, JSON.stringify(this.utxoPool));
       }
     } catch (err) {
     }
@@ -91,7 +95,20 @@ class UTXOPool {
     }
 
     //var balString=(Math.floor(total/1000)).toLocaleString()+"<span class='sats'>"+(total%1000)+"</span>";
-    document.getElementById("balance").innerHTML = balanceString(total,'');
+    if (this.onscreenElementName != null) {
+      document.getElementById(this.onscreenElementName).innerHTML = balanceString(total, true);
+
+      document.getElementById('satoshiamount').innerHTML = total;
+        
+      if (total < 2000 && this.showwarning==true) {
+        document.getElementById('lowfundswarning').style.display = 'block';
+        showQRCode('lowfundsaddress', 100);
+        //only show this message once per app load
+        this.showwarning=false;
+      } 
+    }
+
+    return total;
   }
 
   refreshPool() {
@@ -108,13 +125,13 @@ class UTXOPool {
 
 
     //Get the cashAddr format
-    const Address2 = bch.Address;
-    let thePublicKeyQFormat = new Address2(this.theAddress).toString(bch.Address.CashAddrFormat);
-
+    //const Address2 = bch.Address;
+    //let thePublicKeyQFormat = new Address2(this.theAddress).toString(bch.Address.CashAddrFormat);
+    let thePublicKeyQFormat = new BITBOX.Address().toCashAddress(this.theAddress);
 
     const Address = BITBOX.Address;
     let address = new Address();
-    address.restURL = utxoServer;
+    address.restURL = dropdowns.utxoserver;
 
     (async () => {
       outputInfo = await address.utxo(thePublicKeyQFormat);
@@ -168,7 +185,6 @@ class TransactionQueue {
         })
       } else if (typeof options.data === 'string') {
         // Exported transaction 
-        //s = bch.Script.fromHex(options.data);
         s = [options.data];
       }
     }
@@ -185,11 +201,15 @@ class TransactionQueue {
     this.utxopools = {};
   }
 
-  addUTXOPool(address, storageObject) {
-    this.utxopools[address] = new UTXOPool(address, this.statusMessageFunction, storageObject);
-    try{
+  addUTXOPool(address, storageObject, onscreenElementName) {
+    this.utxopools[address] = new UTXOPool(address, this.statusMessageFunction, storageObject, onscreenElementName);
+    //This is used to display this UTXOPool balance on screen
+    /*if(onscreenElementName!=null){
+      this.utxopools[address].onscreenElementName=onscreenElementName;
+    }*/
+    try {
       this.utxopools[address].refreshPool();
-    }catch(err){
+    } catch (err) {
       this.statusMessageFunction(err);
     }
   }
@@ -544,7 +564,7 @@ class TransactionQueue {
 
     const RawTransactions = BITBOX.RawTransactions;
     let rawtransactions = new RawTransactions();
-    rawtransactions.restURL = txbroadcastServer;
+    rawtransactions.restURL = dropdowns.txbroadcastserver;
     rawtransactions.sendRawTransaction(hex).then((result) => {
       this.updateTransactionPool(utxos, options, tx);
       this.transactionInProgress = false;
@@ -556,7 +576,7 @@ class TransactionQueue {
       this.transactionInProgress = false;
       //Remove unexpected input in error message
       err.message = sanitizeAlphanumeric(err.error);
-      if (err.message === undefined || err.message=="") {
+      if (err.message === undefined || err.message == "") {
         err.message = "Network Error";
       }
       callback(err, null, this);
@@ -584,8 +604,10 @@ class TransactionQueue {
       }
     }
     theUTXOPool.updateBalance();
+  }
 
-
+  updateBalance(address){
+    return this.utxopools[address].updateBalance();
   }
 
 }

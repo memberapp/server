@@ -11,25 +11,25 @@ function timeSince(timestamp, compress) {
   var interval = Math.floor(seconds / 31536000);
 
   if (interval > 1) {
-    return interval + (compress?" year":" years ago");
+    return getSafeTranslation("%s years ago", interval);
   }
   interval = Math.floor(seconds / 2592000);
   if (interval > 1) {
-    return interval + (compress?" mons":" months ago");
+    return getSafeTranslation("%s months ago", interval);
   }
   interval = Math.floor(seconds / 86400);
   if (interval > 1) {
-    return interval + (compress?" days":" days ago");
+    return getSafeTranslation(compress ? "%s d" : "%s days ago", interval);
   }
   interval = Math.floor(seconds / 3600);
   if (interval > 1) {
-    return interval + (compress?" hrs":" hours ago");
+    return getSafeTranslation(compress ? "%s h" : "%s hours ago", interval);
   }
   interval = Math.floor(seconds / 60);
   if (interval > 1) {
-    return interval + (compress?" mins":" minutes ago");
+    return getSafeTranslation(compress ? "%s m" : "%s minutes ago", interval);
   }
-  return Math.floor(seconds) + (compress?" secs":" seconds ago");
+  return getSafeTranslation(compress ? "%s s" : "%s seconds ago", Math.floor(seconds));
 }
 
 var getJSON = function (url) {
@@ -112,7 +112,8 @@ function san(input) {
 }
 
 function sanitizeAlphanumeric(input) {
-  if (input == null) { return ""; }
+  if (input === undefined || input == null) { return ""; }
+  input = input + "";
   return input.replace(/[^A-Za-z0-9]/g, '');
 }
 
@@ -185,7 +186,7 @@ function getParameterByName(name, url) {
   return decodeURIComponent(results[2].replace(/\+/g, " "));
 }
 
-function scrollTo(name) {
+function scrollToElement(name) {
   var element = document.getElementById(name);
   if (element != undefined) {
     ScrollToResolver(element);
@@ -222,32 +223,56 @@ function localStorageSet(theSO, itemName, theString) {
   }
 }
 
-function balanceString(total,append){
-  var balString=(Number(total)/1000).toFixed(3);
-  //total.toLocaleString();
-  
-  //Make last three digits superscript
-  //if(balString.length>4){
-    balString=Number(balString.substr(0,balString.length-4)).toLocaleString()+"<span class='sats'>"+balString.substr(balString.length-3,3)+"</span>"+append;
-  //}
-  return balString;
+
+//var usdrate = 266.75;
+
+function getLatestUSDrate() {
+  getJSON(`https://markets.api.bitcoin.com/live/bitcoin`).then(function (data) {
+    document.getElementById("usdrate").value = Number(data.data.BCH);
+    updateSettingsNumber('usdrate');
+    updateStatus("Got updated exchange rate:" + numbers.usdrate);
+    try{
+      tq.updateBalance(pubkey);
+    }catch(err){}
+  }, function (status) { //error detection....
+    console.log('Failed to get usd rate:' + status);
+    updateStatus(status);
+  });
+}
+
+function balanceString(total, includeSymbol) {
+  if (dropdowns.currencydisplay == "BCH" || numbers.usdrate===undefined|| numbers.usdrate===0) {
+    var balString = (Number(total) / 1000).toFixed(3);
+    balString = Number(balString.substr(0, balString.length - 4)).toLocaleString() + "<span class='sats'>" + balString.substr(balString.length - 3, 3) + "</span>";
+    if (includeSymbol) {
+      return "₿" + balString;
+    } else {
+      return balString + " sats ";
+    }
+  }
+  var usd = ((Number(total) * numbers.usdrate) / 100000000).toFixed(2);
+  if (usd < 1) {
+    return (usd * 100).toFixed(0) + "¢";
+  } else {
+    return "$" + usd;
+  }
 }
 
 function detectMultipleIDS() {
   //console.log("Run Multiple ID check");
   var elms = document.getElementsByTagName("*"), i, len, ids = {}, id;
   for (i = 0, len = elms.length; i < len; i += 1) {
-      id = elms[i].id || null;
-      if (id) {
-          ids[id] =  ids.hasOwnProperty(id) ? ids[id] +=1 : 0;
-      }
+    id = elms[i].id || null;
+    if (id) {
+      ids[id] = ids.hasOwnProperty(id) ? ids[id] += 1 : 0;
+    }
   }
   for (id in ids) {
-      if (ids.hasOwnProperty(id)) {
-          if (ids[id]) {
-              console.warn("Multiple IDs #" + id);
-          }
+    if (ids.hasOwnProperty(id)) {
+      if (ids[id]) {
+        console.warn("Multiple IDs #" + id);
       }
+    }
   }
 }
 
@@ -286,20 +311,20 @@ window.onmessage = (event) => {
 
 function listenForTwitFrameResizes() {
   /* find all iframes with ids starting with "tweet_" */
-  var tweetIframes=document.querySelectorAll("*[id^='tweet_']");
+  var tweetIframes = document.querySelectorAll("*[id^='tweet_']");
   tweetIframes.forEach(element => {
-    element.onload=function() {
+    element.onload = function () {
       this.contentWindow.postMessage({ element: this.id, query: "height" },
-          "https://twitframe.com");
+        "https://twitframe.com");
     };
   });
-  
+
 }
 
 /* listen for the return message once the tweet has been loaded */
 window.onmessage = (oe) => {
   if (oe.origin != "https://twitframe.com")
-      return;
+    return;
   if (oe.data.height && oe.data.element.match(/^tweet_/))
-      document.getElementById(oe.data.element).style.height = parseInt(oe.data.height) + "px"; 
+    document.getElementById(oe.data.element).style.height = parseInt(oe.data.height) + "px";
 }

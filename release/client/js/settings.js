@@ -3,7 +3,7 @@
 function getAndPopulateCommunityRatings(qaddress) {
     document.getElementById('communityratingtable').innerHTML = document.getElementById("loading").innerHTML;
 
-    getJSON(server + '?action=rated&qaddress=' + qaddress + '&address=' + pubkey).then(function (data) {
+    getJSON(dropdowns.contentserver + '?action=rated&qaddress=' + qaddress + '&address=' + pubkey).then(function (data) {
         var contents = "";
         for (var i = 0; i < data.length; i++) {
             contents = contents + ratingAndReasonHTML(data[i]);
@@ -25,8 +25,8 @@ function getAndPopulateCommunityRatings(qaddress) {
 
         }
     }, function (status) { //error detection....
-        console.log('Something is wrong:'+status);
-        document.getElementById('communityratingtable').innerHTML = 'Something is wrong:'+status;
+        console.log('Something is wrong:' + status);
+        document.getElementById('communityratingtable').innerHTML = 'Something is wrong:' + status;
         updateStatus(status);
     });
 }
@@ -34,7 +34,7 @@ function getAndPopulateCommunityRatings(qaddress) {
 function getAndPopulateRatings(qaddress) {
     document.getElementById('ratingtable').innerHTML = document.getElementById("loading").innerHTML;
 
-    getJSON(server + '?action=ratings&qaddress=' + qaddress + '&address=' + pubkey).then(function (data) {
+    getJSON(dropdowns.contentserver + '?action=ratings&qaddress=' + qaddress + '&address=' + pubkey).then(function (data) {
         var contents = "";
         for (var i = 0; i < data.length; i++) {
             contents = contents + ratingAndReason2HTML(data[i]);
@@ -52,20 +52,21 @@ function getAndPopulateRatings(qaddress) {
                 disableText: rts(data[i].ratername) + ' rates ' + rts(data[i].name) + ' as {rating}/{maxRating}',
             });
             starRating1.theAddress = theAddress;
-            
+
             starRating1.disable();
 
         }
     }, function (status) { //error detection....
-        console.log('Something is wrong:'+status);
-        document.getElementById('ratingtable').innerHTML = 'Something is wrong:'+status;
+        console.log('Something is wrong:' + status);
+        document.getElementById('ratingtable').innerHTML = 'Something is wrong:' + status;
         updateStatus(status);
     });
 }
 
 
 function getDataCommonToSettingsAndMember(qaddress, pre) {
-    getJSON(server + '?action=settings&qaddress=' + qaddress + '&address=' + pubkey).then(function (data) {
+
+    getJSON(dropdowns.contentserver + '?action=settings&qaddress=' + qaddress + '&address=' + pubkey).then(function (data) {
 
 
         //alert('Your Json result is:  ' + data.result); //you can comment this, i used it to debug
@@ -87,24 +88,29 @@ function getDataCommonToSettingsAndMember(qaddress, pre) {
             document.getElementById(pre + 'blockingnumber').innerHTML = Number(data[0].blocking);
             document.getElementById(pre + 'nametext').value = data[0].name;
             document.getElementById(pre + 'profiletext').value = data[0].profile;
-            
-            document.getElementById(pre + 'nametext').innerHTML = escapeHTML(data[0].name);
-            document.getElementById(pre + 'profiletext').innerHTML = escapeHTML(data[0].profile);
-            document.getElementById(pre + 'pagingid').innerHTML = escapeHTML("@"+data[0].pagingid);
-            
-            document.getElementById(pre + 'profilelink').href = "#member?qaddress=" + san(qaddress);
-            document.getElementById(pre + 'profilelink').onclick = function () { showMember(qaddress); };
-            document.getElementById(pre + 'memoprofilelink').href = "https://memo.cash/profile/" + san(qaddress);
 
-            
+            document.getElementById(pre + 'nametext').innerHTML = escapeHTML(data[0].name) + sendEncryptedMessageHTML(qaddress, data[0].name, data[0].publickey);
+            document.getElementById(pre + 'profiletext').innerHTML = escapeHTML(data[0].profile);
+            document.getElementById(pre + 'pagingid').innerHTML = escapeHTML("@" + data[0].pagingid);
         }
+
+        document.getElementById(pre + 'profilelink').href = "#member?qaddress=" + san(qaddress);
+        document.getElementById(pre + 'profilelink').onclick = function () { showMember(qaddress); };
+        document.getElementById(pre + 'memoprofilelink').href = "https://memo.cash/profile/" + san(qaddress);
+
+        var jdenticonname=data[0].name;
+        if (jdenticonname == "" || jdenticonname == null) {
+            jdenticonname = qaddress.substring(0, 10);
+        }
+        document.getElementById(pre + 'identicon').innerHTML = `<svg width="20" height="20" class="jdenticonlarge" data-jdenticon-value="`+unicodeEscape(jdenticonname)+`"></svg>`;
+
 
         if (pre == "settings") {
             document.getElementById(pre + 'nametextbutton').disabled = true;
             document.getElementById(pre + 'profiletextbutton').disabled = true;
             if (document.getElementById(pre + 'nametext').value == "") {
                 document.getElementById(pre + 'nametext').disabled = false;
-            }else{
+            } else {
                 document.getElementById(pre + 'nametext').disabled = true;
             }
         }
@@ -123,17 +129,17 @@ function getDataCommonToSettingsAndMember(qaddress, pre) {
 
 
         if (data.length < 1 || Number(data[0].isfollowing) == 0) {
-            document.getElementById(pre + 'follow').innerHTML = clickActionHTML("follow", qaddress);
+            document.getElementById(pre + 'follow').innerHTML = clickActionNamedHTML("follow", qaddress, "follow");
         } else {
-            document.getElementById(pre + 'follow').innerHTML = clickActionHTML("unfollow", qaddress);
+            document.getElementById(pre + 'follow').innerHTML = clickActionNamedHTML("unfollow", qaddress, "unfollow");
         }
 
         //document.getElementById(pre + 'ratings').innerHTML = `<a href='#ratings?qaddress=` + qaddress + `' onclick='showRatings(` + escaped + `);'>Show Ratings</a>`;
 
         if (data.length < 1 || Number(data[0].isblocked) == 0) {
-            document.getElementById(pre + 'block').innerHTML = clickActionHTML("mute", qaddress);
+            document.getElementById(pre + 'block').innerHTML = clickActionNamedHTML("mute", qaddress, "mute");
         } else {
-            document.getElementById(pre + 'block').innerHTML = clickActionHTML("unmute", qaddress);
+            document.getElementById(pre + 'block').innerHTML = clickActionNamedHTML("unmute", qaddress, "unmute");
         }
 
         //This condition checks that the user being viewed is not the logged in user
@@ -145,44 +151,21 @@ function getDataCommonToSettingsAndMember(qaddress, pre) {
             document.getElementById(pre + 'ratingcomment').innerHTML = getRatingComment(qaddress, data);
             document.getElementById(pre + 'ratingcommentinputbox' + qaddress).onchange = function () { starRating1.setRating(0); };
 
-            document.getElementById('memberrating').innerHTML = `<div data-ratingsize="20" data-ratingaddress="`+ san(qaddress) + `" data-ratingraw="` + Number(data[0].rating) + `" id="memberrating` + qaddress + `"></div>`;
-            var theElement=document.getElementById(`memberrating` + qaddress);
+            document.getElementById('memberrating').innerHTML = `<div data-ratingsize="20" data-ratingaddress="` + san(qaddress) + `" data-ratingraw="` + Number(data[0].rating) + `" id="memberrating` + qaddress + `"></div>`;
+            var theElement = document.getElementById(`memberrating` + qaddress);
             var starRating1 = addSingleStarsRating(false, theElement);
-
-            /*var theRating = 0; if (data.length > 0 && data[0].rating != null) { theRating = (ds(data[0].rating) / 64) + 1; }
-            var starRating1 = raterJs({
-                starSize: 20,
-                //rating: theRating,
-                element: document.querySelector("#memberrating" + qaddress),
-                rateCallback: function rateCallback(rating, done) {
-                    var ratingText = document.getElementById("memberratingcommentinputbox" + qaddress);
-                    rateCallbackAction(rating, this, ratingText.value);
-                    done();
-                }
-            });
-            if (theRating != 0) {
-                starRating1.setRating(theRating);
-            }
-
-            starRating1.theAddress = qaddress;
-            */
-            //var tgmember = pubkey;
-            //if (tgmember == null || tgmember == '') {
-            //    tgmember = "19RyV6XQEww5td2LPWDpK8o5V8at7Vpwgv";
-            //}
-            //document.getElementById(pre + 'trustgraph').innerHTML = `<a href='#trustgraph?member=` + tgmember + `&amp;target=` + qaddress + `' onclick='showTrustGraph("` + pubkey + `","` + qaddress + `");'>Show Trust Graph</a>`;
         }
 
+        jdenticon();
     }, function (status) { //error detection....
-        console.log('Something is wrong:'+status);
+        console.log('Something is wrong:' + status);
         updateStatus(status);
     });
 }
 
 function getAndPopulateMember(qaddress) {
     document.getElementById('memberlegacyformat').innerHTML = qaddress;
-    var publicaddress = new bch.Address(qaddress);
-    var memberqpubkey = publicaddress.toString(bch.Address.CashAddrFormat);
+    var memberqpubkey = new BITBOX.Address().toCashAddress(qaddress);
     document.getElementById('membercashaddrformat').innerHTML = memberqpubkey;
     //document.getElementById('memberqrformat').innerHTML = `<a id="memberqrclicktoshow" onclick="document.getElementById('memberqrchart').style.display='block'; new QRCode(document.getElementById('memberqrchart'), '`+memberqpubkey+`'); document.getElementById('memberqrclicktoshow').style.display='none';">Click To Show</a><div id="memberqrchart"></div>`;
 
@@ -200,7 +183,11 @@ function getAndPopulateSettings() {
     //These may already be switched to qrcodes, so try/catch necessary
     try { document.getElementById('legacyformat').innerHTML = pubkey; } catch (err) { }
     try { document.getElementById('cashaddrformat').innerHTML = qpubkey; } catch (err) { }
-    try { document.getElementById('privatekeydisplay').innerHTML = privkey; } catch (err) { }
+    try { document.getElementById('lowfundsaddress').innerHTML = qpubkey; } catch (err) { }
+    try { document.getElementById('privatekeyformat').innerHTML = privkey; } catch (err) { }
+
+    
+    try { document.getElementById('privatekeydisplay').innerHTML = (mnemonic == "" ? "" : "Seed Phrase: " + mnemonic + "<br/>") + "Compressed Private Key: " + privkey; } catch (err) { }
     try { document.getElementById('privatekey').innerHTML = privatekeyClickToShowHTML(); } catch (err) { }
 
     var storedmutedwords = localStorageGet(localStorageSafe, "mutedwords");
@@ -209,39 +196,98 @@ function getAndPopulateSettings() {
         mutedwords = storedmutedwords.split(',');
     }
 
-    var storedoneclicktip = localStorageGet(localStorageSafe, "oneclicktip");
-    if (storedoneclicktip != undefined && storedoneclicktip != null) {
-        storedoneclicktip = Number(storedoneclicktip);
-        if (storedoneclicktip < 547) {
-            storedoneclicktip = 0;
+    //numbers
+    for (var key in numbers) {
+        if (key == 'defaulttip') continue;
+        var theSetting = localStorageGet(localStorageSafe, key);
+        if (theSetting != undefined && theSetting != null) {
+            document.getElementById(key).value = theSetting;
+            numbers[key] = Number(theSetting);
+        } else {
+            document.getElementById(key).value = numbers[key];
         }
-        document.getElementById('oneclicktip').value = storedoneclicktip;
-        oneclicktip = storedoneclicktip;
     }
 
-    var storedmaxfee = localStorageGet(localStorageSafe, "maxfee");
-    if (storedmaxfee != undefined && storedmaxfee != null) {
-        storedmaxfee = Number(storedmaxfee);
-        if (storedmaxfee < 1) {
-            storedmaxfee = 2;
+    //Checkboxes
+    for (var key in settings) {
+        var theSetting = localStorageGet(localStorageSafe, key);
+
+        if (theSetting != undefined && theSetting != null) {
+            document.getElementById(key).checked = Boolean(theSetting == "true");
+            settings[key] = theSetting;
+        } else {
+            document.getElementById(key).checked = Boolean(settings[key] == "true");
         }
-        document.getElementById('maxfee').value = storedmaxfee;
-        maxfee = storedmaxfee;
     }
 
+    //Select boxes
+    for (var key in dropdowns) {
+        var theSetting = localStorageGet(localStorageSafe, key);
+        if (theSetting != null) {
+            dropdowns[key] = theSetting;
+        }
+        var selector = document.getElementById(key);
 
+        var opts = selector.options;
+        for (var i = 0; i < opts.length; i++) {
+            if (opts[i].value == theSetting) {
+                selector.selectedIndex = i;
+            }
+        }
+    }
 
+    //Should have the usdrate populated now
+    getLatestUSDrate();
+    
     getDataCommonToSettingsAndMember(pubkey, "settings");
 
 
 }
 
-function showQRCode(spanid) {
+function updateSettingsCheckbox(settingsName) {
+    settings[settingsName] = "" + document.getElementById(settingsName).checked;
+    localStorageSet(localStorageSafe, settingsName, settings[settingsName]);
+}
+
+function updateSettingsDropdown(settingsName) {
+    var selector = document.getElementById(settingsName);
+    dropdowns[settingsName] = selector.options[selector.selectedIndex].value;
+    localStorageSet(localStorageSafe, settingsName, dropdowns[settingsName]);
+}
+
+function updateSettingsNumber(settingsName) {
+    numbers[settingsName] = Number(document.getElementById(settingsName).value);
+
+    //No numbers are less than 2 except oneclicktip, which will be reset below
+    if (numbers[settingsName] < 2) {
+        numbers[settingsName] = 2;
+    }
+
+    if (settingsName == "results" && numbers[settingsName] > 100) {
+        numbers[settingsName] = 100;
+    }
+    if (settingsName == "maxfee" && numbers[settingsName] < 2) {
+        numbers[settingsName] = 2;
+    }
+    if (settingsName == "oneclicktip" && numbers[settingsName] < 547) {
+        numbers[settingsName] = 0;
+    }
+    localStorageSet(localStorageSafe, settingsName, numbers[settingsName]);
+}
+
+function showQRCode(spanid, size) {
     var addressToQR = document.getElementById(spanid).innerHTML;
     document.getElementById(spanid + "div").innerHTML = "";
-    new QRCode(document.getElementById(spanid + "div"), addressToQR);
+    new QRCode(document.getElementById(spanid + "div"), 
+    {
+        text: addressToQR,
+        width: size,
+        height: size,
+    });
     //document.getElementById('qrclicktoshow').style.display='none';
 }
+
+
 
 function rateCallbackAction(rating, that, ratingtext) {
     if (ratingtext === undefined) {
@@ -283,19 +329,6 @@ function updatemutedwords() {
 
 }
 
-function updateOneClickTip() {
-    oneclicktip = Number(document.getElementById('oneclicktip').value);
-    localStorageSet(localStorageSafe, "oneclicktip", oneclicktip);
 
-}
-
-function updateMaxFee() {
-    maxfee = Number(document.getElementById('maxfee').value);
-    if (maxfee < 2) {
-        maxfee = 2;
-    }
-    localStorageSet(localStorageSafe, "maxfee", maxfee);
-
-}
 
 

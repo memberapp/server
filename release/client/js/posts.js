@@ -2,14 +2,14 @@
 
 "use strict";
 
-function getAndPopulateNew(order, content, topicnameHOSTILE, filter, start, limit, page, qaddress){
-    if(order=="")order="hot";
-    if(content=="")content="posts";
-    if(filter=="")filter="everyone";
-    if(start=="")start=0;
-    if(limit=="")limit=25;
-    if(page=="")page="posts";
-    
+function getAndPopulateNew(order, content, topicnameHOSTILE, filter, start, limit, page, qaddress) {
+    if (order == "") order = "hot";
+    if (content == "") content = "posts";
+    if (filter == "") filter = "everyone";
+    if (start == "") start = 0;
+    if (limit == "") limit = numbers.results;
+    if (page == "") page = "posts";
+
     //Show the relevant html element
     show(page);
 
@@ -17,26 +17,35 @@ function getAndPopulateNew(order, content, topicnameHOSTILE, filter, start, limi
     document.getElementById(page).innerHTML = document.getElementById("loading").innerHTML;
 
     //Request content from the server and display it when received
-    getJSON(server + '?action=show&order='+order+'&content='+content+'&topicname=' + encodeURIComponent(topicnameHOSTILE) + '&filter='+filter+ '&address=' + qaddress + '&start=' + start + '&limit=' + limit).then(function (data) {
+    getJSON(dropdowns.contentserver + '?action=show&order=' + order + '&content=' + content + '&topicname=' + encodeURIComponent(topicnameHOSTILE) + '&filter=' + filter + '&address=' + qaddress + '&start=' + start + '&limit=' + limit).then(function (data) {
 
         //if(data.length>0){updateStatus("QueryTime:"+data[0].msc)};
         //Show navigation next/back buttons
-        var navbuttons = getNavButtonsNewHTML(order, content, topicnameHOSTILE, filter, start, limit, page, qaddress, "getAndPopulateNew", data.length);
+        var navbuttons = getNavButtonsNewHTML(order, content, topicnameHOSTILE, filter, start, limit, page, qaddress, "getAndPopulateNew", data.length>0?data[0].unduplicatedlength:0);
 
         //Server bug will sometimes return duplicates if a post is liked twice for example,
         // this is a workaround, better if fixed server side.
         data = removeDuplicates(data);
-        
-        data = mergeRepliesToRepliesBySameAuthor(data);
+
+        data = mergeRepliesToRepliesBySameAuthor(data, false);
 
         var contents = "";
         for (var i = 0; i < data.length; i++) {
-                contents = contents + getPostListItemHTML(getHTMLForPost(data[i], i + 1 + start, page, i, null));
+            contents = contents + getPostListItemHTML(getHTMLForPost(data[i], i + 1 + start, page, i, null, false));
+        }
+
+        if (contents == "") {
+            contents = getNothingFoundMessageHTML("Nothing here yet");
+
+            if (filter == "mypeeps" || filter == "myfeed" || topicnameHOSTILE == "MyFeed" || topicnameHOSTILE == "MyTopics") {
+                contents = getNothingFoundMessageHTML("Nothing in your feed");
+            }
+
         }
         displayItemListandNavButtonsHTML(contents, navbuttons, page, data, "posts", start);
     }, function (status) { //error detection....
-        console.log('Something is wrong:'+status);
-        document.getElementById(page).innerHTML = 'Something is wrong:'+status;
+        console.log('Something is wrong:' + status);
+        document.getElementById(page).innerHTML = 'Something is wrong:' + status;
         updateStatus(status);
     });
 
@@ -44,7 +53,7 @@ function getAndPopulateNew(order, content, topicnameHOSTILE, filter, start, limi
 
 function getAndPopulate(start, limit, page, qaddress, type, topicNameHOSTILE) {
     console.log("deprecated getAndPopulate old called");
-    if(type=="")type="all";
+    if (type == "") type = "all";
     //Clear Topic
     //currentTopic == "";
     //document.getElementById('topicdiv').innerHTML = "";
@@ -55,32 +64,61 @@ function getAndPopulate(start, limit, page, qaddress, type, topicNameHOSTILE) {
     //Show loading animation
     document.getElementById(page).innerHTML = document.getElementById("loading").innerHTML;
 
-    
-    
+
+
     //Request content from the server and display it when received
-    getJSON(server + '?action=' + page + '&topicname=' + encodeURIComponent(topicNameHOSTILE) + '&address=' + pubkey + '&type=' + type + '&qaddress=' + qaddress + '&start=' + start + '&limit=' + limit).then(function (data) {
+    getJSON(dropdowns.contentserver + '?action=' + page + '&topicname=' + encodeURIComponent(topicNameHOSTILE) + '&address=' + pubkey + '&type=' + type + '&qaddress=' + qaddress + '&start=' + start + '&limit=' + limit).then(function (data) {
 
         //Show navigation next/back buttons
-        var navbuttons = getNavButtonsHTML(start, limit, page, type, qaddress, topicNameHOSTILE, "getAndPopulate", data.length);
+        var navbuttons = getNavButtonsHTML(start, limit, page, type, qaddress, topicNameHOSTILE, "getAndPopulate", data.length>0?data[0].unduplicatedlength:0);
 
         //Server bug will sometimes return duplicates if a post is liked twice for example,
         // this is a workaround, better if fixed server side.
         data = removeDuplicates(data);
-        
-        data = mergeRepliesToRepliesBySameAuthor(data);
+
+        data = mergeRepliesToRepliesBySameAuthor(data, false);
 
         var contents = "";
         for (var i = 0; i < data.length; i++) {
-                contents = contents + getPostListItemHTML(getHTMLForPost(data[i], i + 1 + start, page, i, null));
+            contents = contents + getPostListItemHTML(getHTMLForPost(data[i], i + 1 + start, page, i, null, false));
         }
         displayItemListandNavButtonsHTML(contents, navbuttons, page, data, "posts", start);
-        //detectMultipleIDS();
     }, function (status) { //error detection....
-        console.log('Something is wrong:'+status);
-        document.getElementById(page).innerHTML = 'Something is wrong:'+status;
+        console.log('Something is wrong:' + status);
+        document.getElementById(page).innerHTML = 'Something is wrong:' + status;
         updateStatus(status);
     });
 
+}
+
+function getAndPopulateMessages(start, limit) {
+
+    document.getElementById('messageslist').innerHTML = document.getElementById("loading").innerHTML;
+
+    getJSON(dropdowns.contentserver + '?action=messages&address=' + pubkey).then(function (data) {
+
+        lastViewOfNotificationspm = parseInt(new Date().getTime() / 1000);
+        localStorageSet(localStorageSafe, "lastViewOfNotificationspm", lastViewOfNotificationspm);
+        document.getElementById("alertcountpm").innerHTML = "";
+
+
+        data = mergeRepliesToRepliesBySameAuthor(data, true);
+        var contents = "";
+        for (var i = 0; i < data.length; i++) {
+            data[i].address = data[i].senderaddress;
+            contents += getMessageHTML(data[i], i);
+        }
+        if (contents == "") { contents = "No messages found."; }
+
+
+        document.getElementById('messageslist').innerHTML = contents;
+        addStarRatings(data, "privatemessages");
+        jdenticon();
+    }, function (status) { //error detection....
+        console.log('Something is wrong:' + status);
+        document.getElementById('messageslist').innerHTML = 'Something is wrong:' + status;
+        updateStatus(status);
+    });
 }
 
 function getAndPopulateThread(roottxid, txid, pageName) {
@@ -94,12 +132,12 @@ function getAndPopulateThread(roottxid, txid, pageName) {
     //If no post is specified, we'll use it as a top level
     if (txid === undefined || txid == "") { txid = roottxid; }
 
-    getJSON(server + '?action=thread&address=' + pubkey + '&txid=' + txid).then(function (data) {
+    getJSON(dropdowns.contentserver + '?action=thread&address=' + pubkey + '&txid=' + txid).then(function (data) {
         //Server bug will sometimes return duplicates if a post is liked twice for example,
         // this is a workaround, better if fixed server side.
         data = removeDuplicates(data);
 
-        data = mergeRepliesToRepliesBySameAuthor(data);
+        data = mergeRepliesToRepliesBySameAuthor(data, false);
 
         //Make sure we have id of the top level post
         if (data.length > 0) { roottxid = data[0].roottxid; }
@@ -107,23 +145,23 @@ function getAndPopulateThread(roottxid, txid, pageName) {
         setTopic(data[0].topic);
 
         //Find who started the thread
-        var threadstarter=null;
+        var threadstarter = null;
         for (var i = 0; i < data.length; i++) {
             if (data[i].txid == roottxid) {
-                threadstarter=data[i].address;
+                threadstarter = data[i].address;
             }
         }
 
         //Find the first reply by the thread starter
-        var earliestReply="none";
-        var earliestReplyTXID="none";
-        var earliestReplyTime=9999999999;       
+        var earliestReply = "none";
+        var earliestReplyTXID = "none";
+        var earliestReplyTime = 9999999999;
         for (var i = 0; i < data.length; i++) {
-            if (data[i].retxid == roottxid && data[i].address==threadstarter) {
-                if(data[i].firstseen<earliestReplyTime){
-                    earliestReply=i;
-                    earliestReplyTime=data[i].firstseen;
-                    earliestReplyTXID=data[i].txid
+            if (data[i].retxid == roottxid && data[i].address == threadstarter) {
+                if (data[i].firstseen < earliestReplyTime) {
+                    earliestReply = i;
+                    earliestReplyTime = data[i].firstseen;
+                    earliestReplyTXID = data[i].txid
                 }
             }
         }
@@ -131,60 +169,81 @@ function getAndPopulateThread(roottxid, txid, pageName) {
         var contents = "";
         for (var i = 0; i < data.length; i++) {
             if (data[i].txid == roottxid) {
-                contents += getDivClassHTML("fatitem", getHTMLForPost(data[i], 1, pageName, i, data[earliestReply]));
+                contents += getDivClassHTML("fatitem", getHTMLForPost(data[i], 1, pageName, i, data[earliestReply], true));
                 contents += getDivClassHTML("comment-tree", getNestedPostHTML(data, data[i].txid, 0, pageName, txid, earliestReplyTXID));
             }
         }
         //Threads have no navbuttons
-        displayItemListandNavButtonsHTML(contents, "", "thread", data, "",0);
+        displayItemListandNavButtonsHTML(contents, "", "thread", data, "", 0);
 
         if (popup != undefined) {
             popup.setContent("<div id='mapthread'>" + contents + "</div>");
         }
-        scrollTo("highlightedcomment");
+        scrollToElement("highlightedcomment");
+        //Render identicons
+        jdenticon();
         //detectMultipleIDS();
     }, function (status) { //error detection....
-        console.log('Something is wrong:'+status);
-        document.getElementById(pageName).innerHTML = 'Something is wrong:'+status;
+        console.log('Something is wrong:' + status);
+        document.getElementById(pageName).innerHTML = 'Something is wrong:' + status;
         updateStatus(status);
     });
 }
 
 
-function getAndPopulateTopicList(showpage){
-    var page="topiclistanchor";
-    if(showpage){
+function getAndPopulateTopicList(showpage) {
+    var page = "topiclistanchor";
+    if (showpage) {
         show(page);
     }
     document.getElementById(page).innerHTML = document.getElementById("loading").innerHTML;
-    getJSON(server + '?action=topiclist&qaddress=' + pubkey ).then(function (data) {
-        
-        var selectbox=document.getElementById('topicselector'); 
-        while(selectbox.options[6]){
-            selectbox.remove(6)
+    getJSON(dropdowns.contentserver + '?action=topiclist&qaddress=' + pubkey).then(function (data) {
+
+        var selectboxIndex = 5;
+        var selectbox = document.getElementById('topicselector');
+        while (selectbox.options[selectboxIndex]) {
+            selectbox.remove(selectboxIndex)
         }
 
+
+        var lastValue = "";
         for (var i = 0; i < 40; i++) {
             var option = document.createElement("option");
             //Caution, topicname can contain anything
-            option.text = capitalizeFirstLetter(data[i].topicname.substr(0,13));
+            if (data[i].topicname == null) continue;
+
+            option.text = capitalizeFirstLetter(data[i].topicname.substr(0, 13));
             option.value = data[i].topicname;
-            selectbox.add(option,[i+6]);
+            if (option.value == lastValue) continue;
+            lastValue = option.value;
+            selectbox.add(option, [selectboxIndex]);
+            selectboxIndex++;
         }
-    
-        var contents = "<br/><table><tr><td class='tltopicname'>Topic</td><td class='tlmessagescount'>Posts</td><td class='tlsubscount'>Subs</td><td class='tlaction'>Action</td></tr>";
+
+        //todo, move this to htmlquarantine.
+        var contents = "<br/><table><thead><tr><td class='tltopicname'>Topic</td><td class='tlmessagescount'>Posts</td><td class='tlsubscount'>Subs</td><td class='tlaction'>Action</td></tr></thead><tbody>";
+
+        //group data rows by moderater before displaying
+        var modsArray = [];
         for (var i = 0; i < data.length; i++) {
-                contents += getHTMLForTopic(data[i]);
-            
+            if (i == 0 || (i < data.length && data[i].topicname == data[i - 1].topicname)) {
+                modsArray.push(data[i]);
+            } else {
+                contents += getHTMLForTopicArray(modsArray);
+                modsArray = [];
+                modsArray.push(data[i]);
+            }
         }
-        contents+="</table>";
+
+
+        contents += "</tbody></table>";
         //Threads have no navbuttons
         //displayItemListandNavButtonsHTML(contents, "", "thread", data, "",0);
         document.getElementById(page).innerHTML = contents;
         //detectMultipleIDS();
     }, function (status) { //error detection....
-        console.log('Something is wrong:'+status);
-        document.getElementById(page).innerHTML = 'Something is wrong:'+status;
+        console.log('Something is wrong:' + status);
+        document.getElementById(page).innerHTML = 'Something is wrong:' + status;
         updateStatus(status);
     });
 }
@@ -193,10 +252,11 @@ function getAndPopulateTopicList(showpage){
 
 function displayItemListandNavButtonsHTML(contents, navbuttons, page, data, styletype, start) {
     contents = getItemListandNavButtonsHTML(contents, navbuttons, styletype, start);
-    var pageElement=document.getElementById(page);
+    var pageElement = document.getElementById(page);
     pageElement.innerHTML = contents; //display the result in the HTML element
     listenForTwitFrameResizes();
     addStarRatings(data, page);
+    jdenticon();
     window.scrollTo(0, 0);
     //detectMultipleIDS();
     return;
@@ -226,7 +286,7 @@ function addStarRatings(data, page, disable) {
         var querySelector = "#rating" + i + page + theAddress;
         var theElement = document.querySelector(querySelector);
         addSingleStarsRating(disable, theElement);
-        
+
 
         //Add second one for reply
         if (data[i].type == "reply" || data[i].type == "page") {
@@ -250,12 +310,12 @@ function addStarRatings(data, page, disable) {
 function addSingleStarsRating(disable, theElement) {
     //var theElement = document.querySelector(querySelector);
     if (theElement == undefined) return;
-    let name=theElement.dataset.ratingname;
-    let theAddress=theElement.dataset.ratingaddress;
-    let rawRating=theElement.dataset.ratingraw;
-    let starSize=theElement.dataset.ratingsize;
+    let name = theElement.dataset.ratingname;
+    let theAddress = theElement.dataset.ratingaddress;
+    let rawRating = theElement.dataset.ratingraw;
+    let starSize = theElement.dataset.ratingsize;
 
-    var theRating = 0; if (rawRating != null && rawRating!=0) { theRating = (ds(rawRating) / 64) + 1; }
+    var theRating = 0; if (rawRating != null && rawRating != 0) { theRating = (ds(rawRating) / 64) + 1; }
     var starRating1 = raterJs({
         starSize: starSize,
         rating: Math.round(theRating * 10) / 10,
@@ -263,9 +323,9 @@ function addSingleStarsRating(disable, theElement) {
         disableText: 'This user rates ' + ds(name) + ' as {rating}/{maxRating}',
         rateCallback: function rateCallback(rating, done) {
             var ratingText = document.getElementById("memberratingcommentinputbox" + theAddress);
-            if(ratingText!==undefined){
+            if (ratingText !== undefined) {
                 rateCallbackAction(rating, this, ratingText.value);
-            }else{
+            } else {
                 rateCallbackAction(rating, this);
             }
             done();
@@ -278,22 +338,66 @@ function addSingleStarsRating(disable, theElement) {
     return starRating1;
 }
 
+//markdown editor
+var simplemde;
 
-function memorandumPreview(){
-    var name=document.getElementById('settingsnametext').value;
-    var time=new Date().getTime()/1000;
-    document.getElementById('memorandumpreview').innerHTML=
-    "<br/>Memorandum Preview<br/><br/>"
-    + getHTMLForPostHTML('000', pubkey, name, 1, 0, 0, time, document.getElementById('memorandumtitle').value, '', document.getElementById('memorandumtopic').value, 0, 0, null, "MAINRATINGID",'000',1,0,null,'preview')
-    + getHTMLForReplyHTML('000', pubkey, name, 1, 0, 0, time, document.getElementById('newposttamemorandum').value, '', 'page', "MAINRATINGID", null,'000',1,null,null,'preview');
+function initMarkdownEditor() {
+    if (simplemde == null) {
+        simplemde = new SimpleMDE({
+            element: document.getElementById("newposttamemorandum"),
+            autoDownloadFontAwesome: false,
+            autosave: {
+                enabled: true,
+                uniqueId: "MyUniqueID",
+                delay: 10000,
+            },
+            forceSync: true,
+            promptURLs: true,
+            spellChecker: false,
+            showIcons: ["code", "table", "strikethrough", "heading-1", "heading-2", "heading-3", "quote"],
+            hideIcons: ["preview", "side-by-side", "fullscreen", "guide", "heading"]
+        });
+        simplemde.codemirror.on("change", function () {
+            memorandumPreview();
+        });
+    }
+    memorandumPreview();
+
 }
 
-function getHTMLForPost(data, rank, page, starindex, dataReply) {
-    if (checkForMutedWords(data)) return "";
+function getMemorandumText() {
+    return simplemde.value();
+}
+
+function switchToArticleMode() {
+    setAddonStyle("article.css");
+}
+
+function switchToRegularMode() {
+    setAddonStyle("none.css");
+}
+
+function memorandumPreview() {
+    var name = document.getElementById('settingsnametext').value;
+    var time = new Date().getTime() / 1000;
+    document.getElementById('memorandumpreview').innerHTML =
+        ``
+        + getHTMLForPostHTML('000', pubkey, name, 1, 0, 0, time, document.getElementById('memorandumtitle').value, '', document.getElementById('memorandumtopic').value, 0, 0, null, "MAINRATINGID", '000', 1, 0, null, 'preview')
+        + getHTMLForReplyHTML('000', pubkey, name, 1, 0, 0, time, getMemorandumText(), '', 'page', "MAINRATINGID", null, '000', 1, null, null, 'preview', document.getElementById('memorandumtopic').value, null);
+}
+
+function getHTMLForPost(data, rank, page, starindex, dataReply, alwaysShow) {
+    
+    //Always show if post is directly requested
+    if(!alwaysShow){
+        if (checkForMutedWords(data)) return "";
+        if (data.moderated != null) return "";
+    }
+    
     let mainRatingID = starindex + page + ds(data.address);
-    var retHTML = getHTMLForPostHTML(data.txid, data.address, data.name, data.likes, data.dislikes, data.tips, data.firstseen, data.message, data.roottxid, data.topic, data.replies, data.geohash, page, mainRatingID,data.likedtxid,data.likeordislike,data.repliesroot,data.rating,starindex);
-    if(dataReply!=null){
-        retHTML+=getHTMLForReply(dataReply,0,page,starindex,null);
+    var retHTML = getHTMLForPostHTML(data.txid, data.address, data.name, data.likes, data.dislikes, data.tips, data.firstseen, data.message, data.roottxid, data.topic, data.replies, data.geohash, page, mainRatingID, data.likedtxid, data.likeordislike, data.repliesroot, data.rating, starindex);
+    if (dataReply != null) {
+        retHTML += getHTMLForReply(dataReply, 0, page, starindex, null);
     }
     return retHTML;
 }
@@ -301,7 +405,7 @@ function getHTMLForPost(data, rank, page, starindex, dataReply) {
 function getHTMLForReply(data, depth, page, starindex, highlighttxid) {
     if (checkForMutedWords(data)) return "";
     let mainRatingID = starindex + page + ds(data.address);
-    return getHTMLForReplyHTML(data.txid, data.address, data.name, data.likes, data.dislikes, data.tips, data.firstseen, data.message, depth, page, mainRatingID, highlighttxid,data.likedtxid,data.likeordislike,data.blockstxid,data.rating,starindex);
+    return getHTMLForReplyHTML(data.txid, data.address, data.name, data.likes, data.dislikes, data.tips, data.firstseen, data.message, depth, page, mainRatingID, highlighttxid, data.likedtxid, data.likeordislike, data.blockstxid, data.rating, starindex, data.topic, data.moderated);
 }
 
 function showReplyButton(txid, page, divForStatus) {
@@ -332,52 +436,52 @@ function sendReply(txid, page, divForStatus) {
 
 function replySuccessFunction(page, txid) {
     //document.getElementById(divForStatus).innerHTML = "";
-    document.getElementById("replytext" + page + txid).value="";
+    document.getElementById("replytext" + page + txid).value = "";
     document.getElementById("replystatus" + page + txid).style.display = "none";
     document.getElementById("replybutton" + page + txid).style.display = "block";
-    document.getElementById("replycompleted" + page + txid).innerHTML = "Message Sent. "+getRefreshButtonHTML();
+    document.getElementById("replycompleted" + page + txid).innerHTML = "Message Sent. " + getRefreshButtonHTML();
 }
 
 function showReplyBox(txid) {
     if (privkey == "") {
-        alert("You must login to reply to posts.");
+        alert(getSafeTranslation('log in to reply'));
         return false;
     }
-    var replybox=document.getElementById("reply" + txid);
+    var replybox = document.getElementById("reply" + txid);
     replybox.style.display = "block";
     //document.getElementById("replylink"+txid).style.display = "none";
     return true;
 }
 
-function decreaseGUILikes(txid){
-    var downarrow=document.getElementById('downvote' + txid);
+function decreaseGUILikes(txid) {
+    var downarrow = document.getElementById('downvote' + txid);
     downarrow.className = "votearrowactivateddown rotate180";
-    var downarrowAction=document.getElementById('downvoteaction' + txid);
-    downarrowAction.onclick=null;
+    var downarrowAction = document.getElementById('downvoteaction' + txid);
+    downarrowAction.onclick = null;
 
-    var uparrow=document.getElementById('upvote' + txid);
+    var uparrow = document.getElementById('upvote' + txid);
     uparrow.className = "votearrow";
-    
-    var likescount=Number(document.getElementById('likescount' + txid).innerHTML);
-    document.getElementById('likescount' + txid).innerHTML=likescount-1;
-    document.getElementById('score' + txid).innerHTML=likescount-1;
+
+    var likescount = Number(document.getElementById('likescount' + txid).innerHTML);
+    document.getElementById('likescount' + txid).innerHTML = likescount - 1;
+    document.getElementById('score' + txid).innerHTML = likescount - 1;
 
 }
 
-function increaseGUILikes(txid){
+function increaseGUILikes(txid) {
     //increase number of likes,
-    var uparrow=document.getElementById('upvote' + txid);
+    var uparrow = document.getElementById('upvote' + txid);
     uparrow.className = "votearrowactivated";
-    var uparrowAction=document.getElementById('upvoteaction' + txid);
-    uparrowAction.onclick=null;
+    var uparrowAction = document.getElementById('upvoteaction' + txid);
+    uparrowAction.onclick = null;
 
-    var downarrow=document.getElementById('downvote' + txid);
+    var downarrow = document.getElementById('downvote' + txid);
     downarrow.className = "votearrow rotate180";
 
     //Change counts
-    var likescount=Number(document.getElementById('likescount' + txid).innerHTML);
-    document.getElementById('likescount' + txid).innerHTML=likescount+1;
-    document.getElementById('score' + txid).innerHTML=likescount+1;
+    var likescount = Number(document.getElementById('likescount' + txid).innerHTML);
+    document.getElementById('likescount' + txid).innerHTML = likescount + 1;
+    document.getElementById('score' + txid).innerHTML = likescount + 1;
 }
 
 function likePost(txid, tipAddress) {
@@ -385,18 +489,18 @@ function likePost(txid, tipAddress) {
         alert("You must login to like posts.");
         return false;
     }
-    
+
     increaseGUILikes(txid);
 
     //Change class
-    document.getElementById('score' + txid).className="betweenvotesscoreup";
+    document.getElementById('score' + txid).className = "betweenvotesscoreup";
 
-    if(oneclicktip>=547){
-        var tipscount=Number(document.getElementById('tipscount' + txid).dataset.amount);
-        document.getElementById('tipscount' + txid).innerHTML=balanceString(tipscount+oneclicktip," sats ");
-        document.getElementById('tipscount' + txid).dataset.amount=tipscount+oneclicktip;
-        sendTipRaw(txid, tipAddress, oneclicktip, privkey, null);
-    }else{
+    if (numbers.oneclicktip >= 547) {
+        var tipscount = Number(document.getElementById('tipscount' + txid).dataset.amount);
+        document.getElementById('tipscount' + txid).innerHTML = balanceString(tipscount + numbers.oneclicktip, false);
+        document.getElementById('tipscount' + txid).dataset.amount = tipscount + numbers.oneclicktip;
+        sendTipRaw(txid, tipAddress, numbers.oneclicktip, privkey, null);
+    } else {
         sendLike(txid);
     }
 }
@@ -409,9 +513,9 @@ function dislikePost(txid, tipAddress) {
 
     decreaseGUILikes(txid);
 
-    
+
     //Change class
-    document.getElementById('score' + txid).className="betweenvotesscoredown";
+    document.getElementById('score' + txid).className = "betweenvotesscoredown";
 
     sendDislike(txid);
 }
@@ -435,9 +539,9 @@ function sendTip(txid, tipAddress, page) {
     defaulttip = tipAmount;
 
     document.getElementById('tipstatus' + page + txid).value = "Sending Tip . . " + tipAmount;
-    var tipscount=Number(document.getElementById('tipscount' + txid).dataset.amount);
-    document.getElementById('tipscount' + txid).dataset.amount=tipscount+tipAmount;
-    document.getElementById('tipscount' + txid).innerHTML=balanceString(tipscount+tipAmount," sats ");
+    var tipscount = Number(document.getElementById('tipscount' + txid).dataset.amount);
+    document.getElementById('tipscount' + txid).dataset.amount = tipscount + tipAmount;
+    document.getElementById('tipscount' + txid).innerHTML = balanceString(tipscount + tipAmount, false);
 
     sendTipRaw(txid, tipAddress, tipAmount, privkey,
         function () {
@@ -458,6 +562,12 @@ function showTipBox(txid) {
 
     document.getElementById("tipbox" + txid).style.display = "block";
     //document.getElementById("tiplink"+txid).style.display = "none";
+    return true;
+}
+
+function showMore(show, hide) {
+    document.getElementById(show).style.display = "contents";
+    document.getElementById(hide).style.display = "none";
     return true;
 }
 
@@ -484,7 +594,7 @@ function geopost(lat, long) {
         return false;
     }
     var geohash = encodeGeoHash(document.getElementById("lat").value, document.getElementById("lon").value);
-    
+
     document.getElementById('newpostgeocompleted').innerText = "";
     document.getElementById('newpostgeobutton').style.display = "none";
     document.getElementById('newpostgeostatus').style.display = "block";
@@ -494,42 +604,14 @@ function geopost(lat, long) {
 
 }
 
-function post() {
-    if (!checkForPrivKey()) return false;
-    var txtarea = document.getElementById('memotitle');
-    var posttext = txtarea.value;
-    if (posttext.length == 0) {
-        alert("No Message Body");
-        return false;
-    }
-
-    var topic = document.getElementById('memotopic').value;
-
-    document.getElementById('newpostcompleted').innerText = "";
-    document.getElementById('newpostbutton').style.display = "none";
-    document.getElementById('newpoststatus').style.display = "block";
-    document.getElementById('newpoststatus').value = "Sending Memo...";
-
-    postRaw(posttext, privkey, topic, "newpoststatus", memocompleted);
-
-    //if (typeof popupOverlay !== "undefined") {
-    //    popupOverlay.hide();
-    //}
-}
-
 function postmemorandum() {
     if (!checkForPrivKey()) return false;
     var posttext = document.getElementById('memorandumtitle').value;
     if (posttext.length == 0) {
-        alert("No Title");
+        alert("No Memo - Try adding something in the memo box");
         return false;
     }
     var postbody = document.getElementById('newposttamemorandum').value;
-    if (postbody.length == 0) {
-        alert("No Message Body");
-        return false;
-    }
-
     var topic = document.getElementById('memorandumtopic').value;
     //topic may be empty string
 
@@ -538,22 +620,41 @@ function postmemorandum() {
     document.getElementById('newpostmemorandumstatus').style.display = "block";
     document.getElementById('newpostmemorandumstatus').value = "Sending Title...";
 
+    if (postbody.length == 0 || document.getElementById('memorandumtextarea').style.display == 'none') {
+        //post a regular memo
+        postRaw(posttext, privkey, topic, "newpostmemorandumstatus", memorandumpostcompleted);
+    } else {
+        postmemorandumRaw(posttext, postbody, privkey, topic, "newpostmemorandumstatus", memorandumpostcompleted);
+    }
 
 
-    postmemorandumRaw(posttext, postbody, privkey, topic, "newpostmemorandumstatus", memorandumpostcompleted);
 
     //if (typeof popupOverlay !== "undefined") {
     //    popupOverlay.hide();
     //}
 }
 
-function memorandumpostcompleted() {
+function memorandumpostcompleted(txid) {
+    txid=san(txid);
+    var encodedURL = `https://twitter.com/intent/tweet?text=`+encodeURIComponent(document.getElementById('memorandumtitle').value + '\r\n'+` member.cash/?` + txid.substr(0, 4) + `#thread?post=` + txid.substr(0, 10));
+    //document.getElementById('newpostmemorandumcompleted').innerHTML = `Sent. <a onclick="showThread('`+txid+`')" href="#thread?post=`+txid+`">View It</a> or  <a rel='noopener noreferrer' target="_blank" href="` + encodedURL + `">Also Post To Twitter (opens a new window)</a>`;
+    document.getElementById('newpostmemorandumcompleted').innerHTML = `Sent. <a onclick="showThread('`+txid+`')" href="#thread?post=`+txid+`">View It</a> or  <a href="" onclick="window.open('` + encodedURL + `', 'twitterwindow', 'width=300,height=250');return false;">Also Post To Twitter (opens a new window)</a>`;
+
+
+    
+    //iframe not allowed by twitter
+    //document.getElementById('newpostmemorandumcompleted').innerHTML = `Sent. <a rel='noopener noreferrer' onclick="createiframe('`+encodedURL+`','posttotwitter');return false;" href="">Also Post To Twitter</a><div id="posttotwitter"></div>`;
+    
+
+
     document.getElementById('memorandumtitle').value = "";
     document.getElementById('newposttamemorandum').value = "";
     document.getElementById('newpostmemorandumstatus').style.display = "none";
     document.getElementById('newpostmemorandumbutton').style.display = "block";
-    document.getElementById('newpostmemorandumcompleted').innerHTML = "Message Sent. ";
-    
+    if(simplemde){
+        simplemde.value("");
+    }
+
 }
 
 function memocompleted() {
@@ -587,20 +688,20 @@ function checkForMutedWords(data) {
 
 //Threads
 
-function removeDuplicates(data){
+function removeDuplicates(data) {
     var replies = [];
     for (var i = 0; i < data.length; i++) {
-        if(replies[data[i].txid] == null){
+        if (replies[data[i].txid] == null) {
             replies[data[i].txid] = 1;
-        }else{
-            data.splice(i,1);
+        } else {
+            data.splice(i, 1);
             i--;
         }
     }
     return data;
 }
 
-function mergeRepliesToRepliesBySameAuthor(data) {
+function mergeRepliesToRepliesBySameAuthor(data, isPrivateMessage) {
 
     var replies = [];
     var authors = [];
@@ -613,8 +714,8 @@ function mergeRepliesToRepliesBySameAuthor(data) {
     //console.log(data);
     for (var i = 0; i < data.length; i++) {
 
-        //Do not merge root, or first reply
-        if (data[i].retxid != "" && data[i].retxid != data[i].roottxid) {
+        //Do not merge root, or first reply, unless its a private message
+        if (isPrivateMessage || (data[i].retxid != "" && data[i].retxid != data[i].roottxid)) {
             //if the author of the post is the same as the parent post
             if (data[i].address == authors[data[i].retxid]) {
 
@@ -622,7 +723,7 @@ function mergeRepliesToRepliesBySameAuthor(data) {
                 //Find parent post
                 for (var j = 0; j < data.length; j++) {
                     //replies must be within 6 hours of each other
-                    if (data[i].retxid == data[j].txid && Math.abs(data[i].firstseen-data[j].firstseen)<6*60*60) {
+                    if (data[i].retxid == data[j].txid && Math.abs(data[i].firstseen - data[j].firstseen) < 6 * 60 * 60) {
                         //Subtract one as each post is automatically liked by its own author
                         data[j].likes = (Number(data[j].likes) + Number(data[i].likes - 1)).toString();
                         data[j].dislikes = (Number(data[j].dislikes) + Number(data[i].dislikes)).toString();
