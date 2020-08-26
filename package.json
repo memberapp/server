@@ -1,6 +1,6 @@
 {
   "name": "member",
-  "version": "3.0.0",
+  "version": "4.2.5",
   "description": "Member Server",
   "main": "index.js",
   "bin": "index.js",
@@ -12,6 +12,7 @@
     "bitcoinjs-lib": "3.3.2",
     "grpc": ">=1.24.2",
     "mysql": ">=2.15.0",
+    "pkg": "^4.4.9",
     "sqlite-async": ">=1.0.12",
     "url": ">=0.11.0"
   }

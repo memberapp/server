@@ -2,30 +2,30 @@
 
 :root {
   --bodybgcolor: #ffffff;
-  --bodytextcolor:#000000;
+  --bodytextcolor: #000000;
   --bitcoincash: #4cca47;
   --table2n: #ffffff;
   --table2np1: #f9f9f9;
   --tableborder: #ddd;
   --selectbox: #cee3f8;
-  --selectboxcolor:#000000;
-  --selectoptions:#cee3f8; 
+  --selectboxcolor: #000000;
+  --selectoptions: #cee3f8;
   --header: #cee3f8;
   --headerborder: #4cca47;
-  --hr:#4cca47;
+  --hr: #4cca47;
   --preformattedtext: #333;
   --preformattedbg: #f5f5f5;
   --preformattedborder: #ccc;
-  --poststext: #c6c6c6;
-  --postsheadertext: #888;
+  --votenumbertext: #c6c6c6;
+  --postsheadertext: #555;
   --postslikestext: #333;
   --titletext: #222;
-  --postfootertext: #888;
+  --postfootertext: #555555;
   --votescoredown: #9494FF;
   --highlightlibg: #ffd;
   --liborder: #e6e6e6;
   --libgcolor2np1: #ffffff;
-  --libgcolor2n: #f7f7f8;
+  --libgcolor2n: #ffffff;
   --replybgcolor: #fafafa;
   --replyborder: #369;
   --statusbar: #cccccc;
@@ -33,7 +33,9 @@
   --navbuttonsbg: #eee;
   --navbuttonsborder: #ddd;
   --navbuttonstext: #369;
-  --linkcolor:#0000EE;
+  --notificationtitle: #222;
+  --linkcolor: #0000EE;
+  --loginbutton:#008CBA;
 }
 
 /*General*/
@@ -68,7 +70,7 @@ body {
 
 a {
   text-decoration: none;
-  color:var(--linkcolor);
+  color: var(--linkcolor);
 }
 
 p {
@@ -168,6 +170,10 @@ nav {
   line-height: 25px;
 }
 
+.membertext a {
+  color: var(--bodytextcolor);
+}
+
 select {
   border: 1px;
   background: var(--selectbox);
@@ -205,16 +211,48 @@ select>option {
     font-weight: normal;
     cursor: pointer;
   }
+ 
+
   .loggedout {
     display: inline;
   }
+  .memberlogo {
+    vertical-align: middle;
+    position: relative;
+  }
   .memberlogoimage {
     vertical-align: middle;
-    padding-left: 2px;
+    position: relative;
     padding-bottom: 2px;
   }
+
   .headerbuttons, .refreshbalance, .newpostbutton {
     font-size: large;
+  }
+  .alertcount:not(:empty) {
+    position: relative;
+    top: -10px;
+    left: -13px;
+    background-color: #ff0000;
+    border-radius: 40%;
+    color: #f4f4f4;
+    font-weight: bold;
+    padding: 2px;
+    font-size: xx-small;
+    z-index: 10;
+    margin-right: -14px; 
+  }
+  .noselect {
+    -webkit-touch-callout: none; /* iOS Safari */
+      -webkit-user-select: none; /* Safari */
+       -khtml-user-select: none; /* Konqueror HTML */
+         -moz-user-select: none; /* Old versions of Firefox */
+          -ms-user-select: none; /* Internet Explorer/Edge */
+              user-select: none; /* Non-prefixed version, currently
+                                    supported by Chrome, Opera and Firefox */
+  }
+  .headerbuttons a {
+    color: var(--bodytextcolor);
   }
   .sats {
     font-size: 0.6em;
@@ -225,6 +263,12 @@ select>option {
   .topiccontainer {
     padding-top: 2px;
     padding-right: 2px;
+  }
+  .inlinelabel {
+    display: inline;
+    font-weight: normal;
+    font-size: x-small;
+    color: #373737;
   }
   /* Breakline in header for small screen, 720 is about the point where it splits onto a second line
   probably a better way to handle this as topic container is still free floating and unwanted break appears*/
@@ -249,12 +293,51 @@ footer {
   margin-top: 10px;
 }
 
+
+/* Login/Create New Account Stuff */
+
+.loginbox {
+  text-align: center;
+}
+
+.loginbutton {
+  background-color: var(--loginbutton);
+  border: none;
+  color: white;
+  padding: 15px 32px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.loginnotes{
+  font-size:x-small;
+}
+
+.message{
+  color:var(--postsheadertext);
+}
+
+.alert {
+  color: #8a6d3b;
+  background-color: #fcf8e3;
+  border-color: #faebcc;
+  margin: 5px;
+  padding: 5px;
+}
+
+.lowfundsaddressdiv {
+  float: right;
+}
+
 /* Posts */
 
 @media only screen {
   /*For numbering color*/
   .posts {
-    color: var(--poststext);
+    color: var(--votenumbertext);
   }
   .comhead {
     color: var(--postsheadertext);
@@ -264,7 +347,6 @@ footer {
     display: inline-block;
   }
   .comhead span.score {
-    font-weight: bold;
     color: var(--postslikestext);
   }
   .comhead .hnuser {
@@ -303,6 +385,17 @@ footer {
     float: left;
     font-size: 1px;
   }
+  .jdenticon {
+    width: 15px;
+    height: 15px;
+    margin-bottom: -3px;
+    margin-right: 2px;
+  }
+  .jdenticonlarge {
+    width: 100px;
+    height: 100px;
+  }
+
 }
 
 /*Vote buttons*/
@@ -320,26 +413,13 @@ footer {
   .votearrowactivateddown {
     background: url("../img/uparrowblue.svg");
   }
-  /*Different sizes for large and small screens*/
-  @media only screen and (min-width: 600px) {
-    .votearrow, .votearrowactivated, .votearrowactivateddown {
-      width: 18px;
-      height: 14px;
-      border: 0px;
-      margin: 1px 2px 0px;
-      background-size: 18px 14px;
-      display: block;
-    }
-  }
-  @media only screen and (max-width: 600px) {
-    .votearrow, .votearrowactivated, .votearrowactivateddown {
-      width: 9px;
-      height: 7px;
-      border: 0px;
-      margin: 1px 1px 0px;
-      background-size: 9px 7px;
-      display: block;
-    }
+  .votearrow, .votearrowactivated, .votearrowactivateddown {
+    width: 18px;
+    height: 14px;
+    border: 0px;
+    margin: 1px 2px 0px;
+    background-size: 18px 14px;
+    display: block;
   }
   .votearrow.rotate180, .votearrowactivated.rotate180, .votearrowactivateddown.rotate180 {
     -webkit-transform: rotate(180deg);
@@ -357,7 +437,7 @@ footer {
     text-align: center;
     min-width: 10px;
     display: block;
-    color: var(--poststext);
+    color: var(--votenumbertext);
     font-weight: bold;
     font-size: small;
   }
@@ -405,16 +485,16 @@ footer {
     opacity: 0.2;
   }
   /* Lists, used for displaying posts and threads */
-  #highlightli {
+  .highlightli {
     background-color: var(--highlightlibg);
   }
   /* Desktop Screen */
   @media only screen and (min-width: 600px) {
     .comment-tree li {
-      margin: 0px 0px 8px 10px;
-      border: 1px solid var(--liborder) !important;
+      margin: 0px 0px 0px 10px;
+      border-left: 1px solid var(--liborder) !important;
       border-radius: 3px !important;
-      padding: 5px 8px 5px 5px;
+      padding: 5px 8px 0px 5px;
       overflow: hidden;
       font: normal verdana, arial, helvetica, sans-serif;
     }
@@ -584,14 +664,25 @@ footer {
   }
   .imgurcontainer {}
   .twittercontainer {}
+  .commentbody img, .imgurimage {
+    display: inline;
+    margin-top: 5px;
+    margin-bottom: 5px;
+    max-height: 300px;
+    max-width: 100%;
+    vertical-align: top;
+    align-content: center;
+  }
   @media only screen and (max-width: 860px) {
     .youtubepreviewimage {
       width: 100%;
+      max-height: 270px;
       vertical-align: top;
     }
     .youtubepreview {
       position: relative;
       width: 100%;
+      max-height: 270px;
       margin-top: 5px;
       margin-bottom: 5px;
     }
@@ -609,14 +700,6 @@ footer {
       width: 100%;
       vertical-align: top;
     }
-    .imgurimage {
-      display: inline;
-      margin-top: 5px;
-      margin-bottom: 5px;
-      max-height: 300px;
-      max-width: 100%;
-      vertical-align: top;
-    }
   }
   @media only screen and (min-width: 860px) {
     .youtubepreviewimage {
@@ -626,10 +709,10 @@ footer {
     }
     .youtubepreview {
       position: relative;
-      width: 480px;
       margin-top: 5px;
       margin-bottom: 5px;
       height: 270px;
+      width: 480px;
     }
     .youtubeiframe {
       display: inline;
@@ -645,14 +728,6 @@ footer {
       margin-bottom: 5px;
       height: 400px;
       width: 550px;
-      vertical-align: top;
-    }
-    .imgurimage {
-      display: inline;
-      margin-top: 5px;
-      margin-bottom: 5px;
-      height: 300px;
-      max-width: 100%;
       vertical-align: top;
     }
   }
@@ -767,7 +842,7 @@ li.notificationpage::before {
   font-size: medium;
   font-weight: normal;
   margin-bottom: 4px;
-  color: #222;
+  color: var(--notificationtitle);
 }
 
 .notificationminheight {
@@ -789,7 +864,7 @@ li.notificationpage::before {
 
 /*settings page*/
 
-#settingsanchor {
+#settingsanchor, #toolsanchor, #messagesanchor {
   font-size: small;
 }
 
@@ -801,6 +876,16 @@ label {
   display: block;
   padding-top: 10px;
   font-weight: bold;
+}
+
+.checkboxlabel {
+  display: inline;
+  font-weight: normal;
+}
+
+.qrcodeclick {
+  cursor: pointer;
+  font-size: x-small;
 }
 
 /*member page*/
@@ -822,21 +907,33 @@ label {
 
 .newpost {
   font-size: small;
-  font-weight: bold;
+  width: 80%;
 }
 
 textarea, .memorandumtitle, .memotopic, .memorandumtopic {
-  width: 80%;
+  width: 99%;
 }
 
 .geoposttextarea {
   width: 90%;
 }
 
+.switchToArticleMode {
+  display: block;
+}
+
+.switchToRegularMode {
+  display: none;
+}
+
 /*Topic List*/
 
-.tlmessagecount, .tlsubscount, .tlagecount, .tlaction {
+.tlmessagecount, .tlsubscount, .tlagecount {
   text-align: right;
+}
+
+.tlaction {
+  text-align: left;
 }
 
 .tltopicname {

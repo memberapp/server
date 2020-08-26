@@ -51,10 +51,12 @@ config.dbconfig = {
   database: "member",
 };
 
-
-//Usually the processing will start where it left off,
-//you can override this by setting a startBlock.
+//This setting should usually be set to null
+//The first time it is run, it will start at block 525471
+//Following that, the processing will start where it left off
 config.startBlock = null;
+
+//you can override this by setting a startBlock.
 //config.startBlock = 525471; //first memo trx
 //config.startBlock = 525590; //name
 //config.startBlock = 525704; //follows

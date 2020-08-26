@@ -1,5 +1,39 @@
 "use strict";
 
+var lastViewOfNotifications = 0;
+var lastViewOfNotificationspm = 0;
+
+function displayNotificationCount() {
+    getJSON(dropdowns.contentserver + '?action=alertcount&address=' + pubkey + '&since=' + lastViewOfNotifications + '&sincepm=' + lastViewOfNotificationspm).then(function (data) {
+
+        if (data[0].count == null) {
+            return;
+        }
+
+        var alertcount = Number(data[0].count);
+        var element = document.getElementById("alertcount");
+        if (alertcount > 0) {
+            element.innerHTML =  alertcount;
+        } else {
+            element.innerHTML = "";
+        }
+
+        var alertcountpm = Number(data[0].countpm);
+        var element = document.getElementById("alertcountpm");
+        if (alertcountpm > 0) {
+            element.innerHTML =  alertcountpm;
+        } else {
+            element.innerHTML = "";
+        }
+
+        setTimeout(displayNotificationCount, 60000);
+    }, function (status) { //error detection....
+        console.log('Something is wrong:' + status);
+        updateStatus(status);
+    });
+
+}
+
 function getAndPopulateNotifications(start, limit, page, qaddress) {
     //Clear existing content
     show(page);
@@ -10,24 +44,30 @@ function getAndPopulateNotifications(start, limit, page, qaddress) {
 
 
     //Request content from the server and display it when received
-    getJSON(server + '?action=' + page + '&address=' + pubkey + '&qaddress=' + qaddress + '&start=' + start + '&limit=' + limit).then(function (data) {
+    getJSON(dropdowns.contentserver + '?action=' + page + '&address=' + pubkey + '&qaddress=' + qaddress + '&start=' + start + '&limit=' + limit).then(function (data) {
         //data = mergeRepliesToRepliesBySameAuthor(data);
-        var navbuttons = getNavButtonsHTML(start, limit, page, 'new', qaddress, "", "getAndPopulateNotifications", data.length);
+        var navbuttons = getNavButtonsHTML(start, limit, page, 'new', qaddress, "", "getAndPopulateNotifications", data.length>0?data[0].unduplicatedlength:0);
 
         var contents = "";
         for (var i = 0; i < data.length; i++) {
             contents = contents + getHTMLForNotification(data[i], i + 1 + start, page, i);
         }
         //console.log(contents);
-        if (contents == "") { contents = "Nothing in this feed yet"; }
+        if(contents==""){
+            contents=getNothingFoundMessageHTML("No notifications yet");   
+        }
         contents = getNotificationsTableHTML(contents, navbuttons);
+        lastViewOfNotifications = parseInt(new Date().getTime() / 1000);
+        localStorageSet(localStorageSafe, "lastViewOfNotifications", lastViewOfNotifications);
+        document.getElementById("alertcount").innerHTML = "";
+        
         document.getElementById(page).innerHTML = contents; //display the result in an HTML element
         addStarRatings(data, page);
         listenForTwitFrameResizes();
         window.scrollTo(0, 0);
     }, function (status) { //error detection....
         console.log('Something is wrong:' + status);
-        document.getElementById(page).innerHTML = 'Something is wrong:'+status;
+        document.getElementById(page).innerHTML = 'Something is wrong:' + status;
         updateStatus(status);
     });
 
@@ -49,7 +89,7 @@ function getHTMLForNotification(data, rank, page, starindex) {
                 `📣&nbsp;`,
                 userHTML(data.origin, data.originname, mainRatingID, data.raterrating, 16) + ` ` + postlinkHTML(data.txid, "mentioned you "),
                 timeSince(Number(data.time)),
-                getHTMLForPostHTML(data.rtxid, data.raddress, data.originname, data.rlikes, data.rdislikes, data.rtips, data.rfirstseen, data.rmessage, data.rroottxid, data.rtopic, data.rreplies, data.rgeohash, page, postRatingID,  data.rlikedtxid, data.rlikeordislike, data.repliesroot, data.raterrating, starindex)
+                getHTMLForPostHTML(data.rtxid, data.raddress, data.originname, data.rlikes, data.rdislikes, data.rtips, data.rfirstseen, data.rmessage, data.rroottxid, data.rtopic, data.rreplies, data.rgeohash, page, postRatingID, data.rlikedtxid, data.rlikeordislike, data.repliesroot, data.raterrating, starindex)
             );
             //<a href="#thread?root=`+ ds(data.roottxid) + `&post=` + ds(data.txid) + `" onclick="showThread('` + ds(data.roottxid) + `','` + ds(data.txid) + `')">` + anchorme(ds(data.message), { attributes: [{ name: "target", value: "_blank" }] }) + `</a> `;
             break;
@@ -90,9 +130,9 @@ function getHTMLForNotification(data, rank, page, starindex) {
             return notificationItemHTML(
                 "like",
                 `💗&nbsp;`,
-                userHTML(data.origin, data.originname, mainRatingID, data.raterrating, 16) + ` liked your ` + postlinkHTML(data.likeretxid, "post") + ` ` + balanceString(Number(data.amount),` sats `),
+                userHTML(data.origin, data.originname, mainRatingID, data.raterrating, 16) + ` liked your ` + postlinkHTML(data.likeretxid, "post") + ` ` + (Number(data.amount)>0?balanceString(Number(data.amount), false):""),
                 timeSince(Number(data.time)),
-                getHTMLForPostHTML(data.ltxid, data.laddress, data.username, data.llikes, data.ldislikes, data.ltips, data.lfirstseen, data.lmessage, data.lroottxid, data.ltopic, data.lreplies, data.lgeohash, page, postRatingID,  data.likedtxid, data.likeordislike, data.repliesroot, data.selfrating, starindex)
+                getHTMLForPostHTML(data.ltxid, data.laddress, data.username, data.llikes, data.ldislikes, data.ltips, data.lfirstseen, data.lmessage, data.lroottxid, data.ltopic, data.lreplies, data.lgeohash, page, postRatingID, data.likedtxid, data.likeordislike, data.repliesroot, data.selfrating, starindex)
             );
             break;
 
