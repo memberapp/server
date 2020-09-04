@@ -57,8 +57,8 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 	//TODO sqlite doesn't have POWER funciton, using a (significantly worse) approximation 
 	if (issqlite) timedivisor = `((` + sqltimestamp + `-messages.firstseen)/3600)*4+(3600*24)`;
 
-	var least = " ORDER BY (LEAST(messages.likes,10)-LEAST(messages.dislikes,10)+LEAST(repliesuniquemembers,10)+LEAST((messages.tips/10000),10))";
-	if (issqlite) least = " ORDER BY (MIN(messages.likes,10)-MIN(messages.dislikes,10)+MIN(repliesuniquemembers,10)+MIN((messages.tips/10000),10))";
+	var least = " ORDER BY (LEAST(reposts.likes+messages.likes,10)-LEAST(reposts.dislikes+messages.dislikes,10)+LEAST(messages.repliesuniquemembers+reposts.repliesuniquemembers,10)+LEAST(((reposts.tips+messages.tips)/10000),10))";
+	if (issqlite) least = " ORDER BY (MIN(reposts.likes+messages.likes,10)-MIN(reposts.dislikes+messages.dislikes,10)+MIN(messages.repliesuniquemembers+reposts.repliesuniquemembers,10)+MIN(((reposts.tips+messages.tips)/10000),10))";
 
 	var sql = "SELECT VERSION();";
 
@@ -68,12 +68,16 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 	var select = `SELECT `;
 	var likesanddislikes = " LEFT JOIN likesdislikes ON likesdislikes.address='" + address + "' AND likesdislikes.retxid=messages.txid ";
 	var names = " LEFT JOIN names ON messages.address=names.address ";
+	var rpnames = " LEFT JOIN names as rpnames ON reposts.address=rpnames.address ";
+
 	var userratings = " LEFT JOIN userratings ON userratings.address='" + address + "' AND messages.address=userratings.rates ";
+	var rpuserratings = " LEFT JOIN userratings as rpuserratings ON rpuserratings.address='" + address + "' AND reposts.address=rpuserratings.rates ";
+	
 
 	var mods = ` LEFT JOIN hiddenposts ON hiddenposts.txid=messages.txid
 	LEFT JOIN hiddenusers ON hiddenusers.address=messages.address
 	LEFT JOIN mods on (hiddenposts.modr = mods.modr OR hiddenusers.modr=mods.modr) AND (mods.topic=messages.topic OR mods.topic='')
-	LEFT JOIN mods as mods2 on mods2.modr=mods.address AND mods2.address="` + address + `" AND (mods2.topic=mods.topic OR mods2.topic='')`;
+	LEFT JOIN mods as mods2 on mods2.modr=mods.address AND mods2.address='` + address + `' AND (mods2.topic=mods.topic OR mods2.topic='')`;
 
 	if (action == 'show') {
 
@@ -118,6 +122,8 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			followsORblocks = ` LEFT JOIN follows ON messages.address=follows.follows WHERE follows.address='` + address + `' `;
 		}
 
+		var reposts = " LEFT JOIN messages as reposts ON messages.repost = reposts.txid ";
+		
 		if (topicnameHOSTILE == "mytopics") { //Show topics, but not from blocked members
 			followsORblocks = ` 
 			LEFT JOIN subs ON messages.topic=subs.topic 
@@ -162,22 +168,50 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 				firstseen = " ";
 		}
 
+		var specificuser="";
+		if(qaddress!="" && qaddress!="undefined"){
+			specificuser=` AND messages.address='` + qaddress + `' `;
+		}
 
-		sql = select + ` DISTINCT(messages.txid), mods2.address as moderated, messages.*,
-				name, 
-				rating, 
-		repliesdirect as replies,
-		repliesroot as repliesroot, 
-		likesdislikes.txid as likedtxid, 
-		likesdislikes.type as likeordislike  
-		FROM messages  
+		sql = select + ` DISTINCT(messages.canonicalid), mods2.address as moderated, messages.*,
+				names.name,
+				rpnames.name as rpname, 
+				userratings.rating,
+				rpuserratings.rating as rprating, 
+		messages.repliesdirect as replies,
+		messages.repliesroot as repliesroot, 
+		reposts.address as rpaddress,
+		reposts.amount as rpamount,
+		reposts.dislikes as rpdislikes,
+		reposts.firstseen as rpfirstseen,
+		reposts.geohash as rpgeohash,
+		reposts.language as rplanguage,
+		reposts.lat as rplat,
+		reposts.likes as rplikes,
+		reposts.lon as rplon,
+		reposts.message as rpmessage,
+		reposts.repliestree as rprepliestree,
+		reposts.repliesuniquemembers as rprepliesuniquemembers,
+		reposts.repost as rprepost,
+		reposts.repostcount as rprepostcount,
+		reposts.retxid as rpretxid,
+		reposts.roottxid as rproottxid,
+		reposts.tips as rptips,
+		reposts.topic as rptopic,
+		reposts.txid as rptxid,
+		reposts.repliesdirect as rpreplies,
+		reposts.repliesroot as rprepliesroot
+		FROM messages as messages
+		` + reposts  + ` 
 		` + userratings + `
+		` + rpuserratings + `
 		` + names + `
-		` + likesanddislikes + ` 
+		` + rpnames + `
 		` + mods + `
 		` + followsORblocks + `
 		` + postsOrComments + `
 		` + topicquery + `
+		` + specificuser + `
 		` + firstseen + `
 		` + orderby + ` LIMIT ` + start + `,` + limit;
 

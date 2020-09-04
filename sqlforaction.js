@@ -89,7 +89,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
       var sentFrom = getFirstSendingAddressFromTX(tx.ins[0]);
 
       //Create post from slp creation
-      sql.push(insertignore + " into messages VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(slpTokenMessage) + "," + escapeFunction(txid) + "," + escapeFunction(time) + ",''," + escapeFunction(txid) + ",1,0,0," + escapeFunction('tokens') + "," + escapeFunction(null) + "," + escapeFunction(null) + "," + escapeFunction(null) + ",0,0,0,0);");
+      sql.push(insertignore + " into messages VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(slpTokenMessage) + "," + escapeFunction(txid) + "," + escapeFunction(time) + ",''," + escapeFunction(txid) + ",1,0,0," + escapeFunction('tokens') + "," + escapeFunction(null) + "," + escapeFunction(null) + "," + escapeFunction(null) + ",0,0,0,0,''," + escapeFunction(txid) + ",0,'',0);");
       //Assume author likes his own post
       sql.push(insertignore + " into likesdislikes VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(txid) + ",1," + escapeFunction(time) + "," + escapeFunction(txid) + ");");
       return sql;
@@ -136,6 +136,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           break;
         case "6d0c": //Post topic message 	0x6d0c 	topic(variable), message(74 - topic length)
         case "6d02": //Post memo 	0x6d02 	message(77)
+        case "6d0b": //Repost memo 	
         case "6d10": //Memo poll
         case "6d24": //Send money
         case "6da8": //Post geotagged message 0x6da8 geohash(variable),message
@@ -148,10 +149,11 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           var geohash = "";
           var lat = null;
           var long = null;
+          var repostid= null;
           if (messages.length > 1) {
-            if (operationCode == "6d0c") {
+            if (operationCode == "6d0c") { //topic
               topic = decode.toLowerCase();
-            } else if (operationCode == "6da8") {
+            } else if (operationCode == "6da8") { //geotagged
               try {
                 geohash = decode;
                 var coords = geohashlib.decodeGeoHash(decode);
@@ -166,6 +168,19 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
               //Poll question is in third position
               decode = fromHex(messages[2]);
             } else {
+              //For all others, it is in second position
+              decode = fromHex(messages[1]);
+            }
+          }
+
+          //Canonicalid will be the same as the txid, expect for reposts
+          //This field helps to avoid seeing the same reposts over and over as new content. 
+          var canonicalid=txid;
+          if (operationCode == "6d0b") { //Repost memo 	
+            repostid = messages[0].match(/[a-fA-F0-9]{2}/g).reverse().join('');
+            repostid = repostid.substr(0, MAXTXID);
+            canonicalid=repostid;
+            if (messages.length > 1){
               decode = fromHex(messages[1]);
             }
           }
@@ -175,12 +190,22 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           topic = topic.substr(0, MAXMESSAGE);
           geohash = geohash.substr(0, MAXGEOHASH);
 
-          sql.push(insertignore + " into messages VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(decode) + "," + escapeFunction(txid) + "," + escapeFunction(time) + ",''," + escapeFunction(txid) + ",1,0,0," + escapeFunction(topic) + "," + escapeFunction(lat) + "," + escapeFunction(long) + "," + escapeFunction(geohash) + ",0,0,0,0);");
+          sql.push(insertignore + " into messages VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(decode) + "," + escapeFunction(txid) + "," + escapeFunction(time) + ",''," + escapeFunction(txid) + ",1,0,0," + escapeFunction(topic) + "," + escapeFunction(lat) + "," + escapeFunction(long) + "," + escapeFunction(geohash) + ",0,0,0,0,"+escapeFunction(repostid)+"," + escapeFunction(canonicalid) + ",0,'',0);");
           //Assume author likes his own post
           sql.push(insertignore + " into likesdislikes VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(txid) + ",1," + escapeFunction(time) + "," + escapeFunction(txid) + ");");
 
           //Add page notifications 
           sql = sql.concat(getPageNotificationSQL(decode, txid, sentFrom, time, escapeFunction, insertignore));
+
+          //For reposts
+          if (operationCode == "6d0b") {
+            //increase repost count
+            sql.push("UPDATE messages SET repostcount = (SELECT count(*) FROM messages WHERE repost=" + escapeFunction(repostid) + ")  WHERE txid=" + escapeFunction(repostid) + ";");
+
+            //add repost notification
+            sql.push(insertignore + " into notifications VALUES(" + escapeFunction(txid) + ",'repost',(SELECT address FROM messages WHERE txid = " + escapeFunction(repostid) + ")," + escapeFunction(sentFrom) + "," + escapeFunction(time) + ");");
+          }
+
           return sql;
           break;
 
@@ -207,7 +232,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
             sql.push(insertignore + " into likesdislikes VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(txid) + ",1," + escapeFunction(time) + "," + escapeFunction(txid) + ");");
           }
 
-          sql.push(insertignore + " into messages VALUES(" + escapeFunction(sentFrom) + "," + escapeFunction(decode) + "," + escapeFunction(txid) + "," + escapeFunction(time) + "," + escapeFunction(retxid) + ",''," + startingLikes + ",0,0,'',NULL,NULL,'',0,0,0,0);");
+          sql.push(insertignore + " into messages VALUES(" + escapeFunction(sentFrom) + "," + escapeFunction(decode) + "," + escapeFunction(txid) + "," + escapeFunction(time) + "," + escapeFunction(retxid) + ",''," + startingLikes + ",0,0,'',NULL,NULL,'',0,0,0,0,''," + escapeFunction(txid) + ",0,'',0);");
 
           //Add roottxid - These are probably the slowest update queries         
           if (issqlite) {
@@ -350,14 +375,9 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           sql.push("DELETE FROM userratings WHERE address=" + escapeFunction(sentFrom) + " AND rates=" + escapeFunction(followAddress) + " AND rating='191';");
           return sql;
           break;
-        case "6d08": //Set image base url 	0x6d08 	url(77)
-          break;
-        case "6d09": //Attach picture 	0x6d09 	txhash(20), imghash(20), url(34)
-          break;
         case "6d0a": //Set profile picture 	0x6d10 	imghash(16), url(61)
           break;
-        case "6d0b": //Repost memo 	0x6d11 	txhash(20), message(63)
-          break;
+       
         case "6d0d": //Topic follow 	0x6d0d 	topic_name(variable) 	Implemented
           var decode = fromHex(messages[0]);
           var topic = decode.toLowerCase();
@@ -449,7 +469,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
               `+ escapeFunction(note);
             }
 
-            sql.push(insertignore + " into messages VALUES (" + escapeFunction(sentFrom) + "," + concat + "," + escapeFunction(txid) + "," + escapeFunction(time) + ",''," + escapeFunction(txid) + ",1,0,0," + escapeFunction('ratings') + "," + escapeFunction(null) + "," + escapeFunction(null) + "," + escapeFunction('') + ",0,0,0,0);");
+            sql.push(insertignore + " into messages VALUES (" + escapeFunction(sentFrom) + "," + concat + "," + escapeFunction(txid) + "," + escapeFunction(time) + ",''," + escapeFunction(txid) + ",1,0,0," + escapeFunction('ratings') + "," + escapeFunction(null) + "," + escapeFunction(null) + "," + escapeFunction('') + ",0,0,0,0,''," + escapeFunction(txid) + ",0,'',0);");
             sql.push(insertignore + " into likesdislikes VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(txid) + ",1," + escapeFunction(time) + "," + escapeFunction(txid) + ");");
 
             sql = sql.concat(getPageNotificationSQL(note, txid, sentFrom, time, escapeFunction, insertignore));
