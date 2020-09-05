@@ -66,18 +66,28 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 	//var select = `SELECT \/*+ MAX_EXECUTION_TIME = 1000 *\/ `;
 
 	var select = `SELECT `;
+
+	var reposts = " LEFT JOIN messages as reposts ON messages.repost = reposts.txid ";
+
 	var likesanddislikes = " LEFT JOIN likesdislikes ON likesdislikes.address='" + address + "' AND likesdislikes.retxid=messages.txid ";
 	var names = " LEFT JOIN names ON messages.address=names.address ";
 	var rpnames = " LEFT JOIN names as rpnames ON reposts.address=rpnames.address ";
 
 	var userratings = " LEFT JOIN userratings ON userratings.address='" + address + "' AND messages.address=userratings.rates ";
 	var rpuserratings = " LEFT JOIN userratings as rpuserratings ON rpuserratings.address='" + address + "' AND reposts.address=rpuserratings.rates ";
-	
 
-	var mods = ` LEFT JOIN hiddenposts ON hiddenposts.txid=messages.txid
-	LEFT JOIN hiddenusers ON hiddenusers.address=messages.address
+	//OR hiddenusers.address = reposts.address
+	//todo. if a hidden user reposts a non-hidden user, it may display. fix this.
+	var mods = ` LEFT JOIN hiddenposts ON hiddenposts.txid=messages.canonicalid
+	LEFT JOIN hiddenusers ON hiddenusers.address=messages.address 
 	LEFT JOIN mods on (hiddenposts.modr = mods.modr OR hiddenusers.modr=mods.modr) AND (mods.topic=messages.topic OR mods.topic='')
 	LEFT JOIN mods as mods2 on mods2.modr=mods.address AND mods2.address='` + address + `' AND (mods2.topic=mods.topic OR mods2.topic='')`;
+
+	var modsthread = ` LEFT JOIN hiddenposts ON hiddenposts.txid=messages.canonicalid
+	LEFT JOIN hiddenusers ON hiddenusers.address=messages.address 
+	LEFT JOIN mods on (hiddenposts.modr = mods.modr OR hiddenusers.modr=mods.modr) AND (mods.topic=messages.topic OR mods.topic='')
+	LEFT JOIN mods as mods2 on mods2.modr=mods.address AND mods2.address='` + address + `' AND (mods2.topic=mods.topic OR mods2.topic='')`;
+
 
 	if (action == 'show') {
 
@@ -110,20 +120,19 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			topicquery = " AND messages.topic=" + escapeFunction(topicnameHOSTILE) + " ";
 		}
 
-		var followsORblocks = " LEFT JOIN blocks ON messages.address=blocks.blocks AND blocks.address='" + address + "' WHERE blocks IS NULL ";
+		//todo - possible here that a blocked user might show up if they post in a topic the user is following
+		var followsORblocks = " LEFT JOIN blocks ON (messages.address=blocks.blocks OR reposts.address=blocks.blocks) AND blocks.blocks='" + address + "' WHERE blocks IS NULL ";
 		if (filter == "myfeed") { //My feed, posts from my subs or my peeps (does not exclude blocked members)
 			followsORblocks = ` LEFT JOIN follows ON messages.address=follows.follows 
 			LEFT JOIN subs ON messages.topic=subs.topic
 			WHERE (follows.address='` + address + `' 
 			OR subs.address='` + address + `') `;
-		}
-
-		if (filter == "mypeeps") {
+		} else if (filter == "mypeeps") {
 			followsORblocks = ` LEFT JOIN follows ON messages.address=follows.follows WHERE follows.address='` + address + `' `;
 		}
 
-		var reposts = " LEFT JOIN messages as reposts ON messages.repost = reposts.txid ";
-		
+
+
 		if (topicnameHOSTILE == "mytopics") { //Show topics, but not from blocked members
 			followsORblocks = ` 
 			LEFT JOIN subs ON messages.topic=subs.topic 
@@ -168,9 +177,15 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 				firstseen = " ";
 		}
 
-		var specificuser="";
-		if(qaddress!="" && qaddress!="undefined"){
-			specificuser=` AND messages.address='` + qaddress + `' `;
+		var specificuser = "";
+		if (qaddress != "" && qaddress != "undefined") {
+			specificuser = ` AND messages.address='` + qaddress + `' `;
+		}
+
+		//todo, for no retweets it would be more efficient not to join the table in the first place
+		var noreposts = "";
+		if(filter=="everyone" || filter=="" ){
+			noreposts=` AND messages.repost is NULL `;
 		}
 
 		sql = select + ` DISTINCT(messages.canonicalid), mods2.address as moderated, messages.*,
@@ -202,7 +217,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		reposts.repliesdirect as rpreplies,
 		reposts.repliesroot as rprepliesroot
 		FROM messages as messages
-		` + reposts  + ` 
+		` + reposts + ` 
 		` + userratings + `
 		` + rpuserratings + `
 		` + names + `
@@ -212,6 +227,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		` + postsOrComments + `
 		` + topicquery + `
 		` + specificuser + `
+		` + noreposts + `
 		` + firstseen + `
 		` + orderby + ` LIMIT ` + start + `,` + limit;
 
@@ -384,7 +400,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			+ userratings
 			+ names
 			+ likesanddislikes
-			+ mods
+			+ modsthread
 			+ `LEFT JOIN blocks ON messages.address=blocks.blocks AND blocks.address='` + address + `' WHERE 1=1  
 		AND messages3.txid LIKE '` + txid + `%' AND messages3.roottxid!='' ` + threadorder;
 	}
