@@ -28,3 +28,6 @@ I've tested against Bitcoin Unlimited / BCHD - let me know how you get on with o
 If you're running BCHD with an index server, you can also use Member as your utxo server (getting utxos for your address)
 Edit the config file to switch this on, and edit release/js/config.js to update the 'utxoserver' setting for the client.
 
+If you're using the MySQL server, you must switch off the ONLY_FULL_GROUP_BY option in the config
+Here's one potential config option
+sql-mode="STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION"

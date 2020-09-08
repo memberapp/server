@@ -126,9 +126,9 @@ var run = async function () {
       expensiveHousekeepingSQLOperations.push([`UPDATE messages SET roottxid=txid WHERE roottxid IS NULL AND retxid ='' AND ` + timestampSQL + `-firstseen > 60*60*24;`, `UPDATE messages SET roottxid=txid WHERE roottxid IS NULL AND ` + timestampSQL + `-firstseen > 60*60*48;`]);
 
       //This is a lighter housekeeping operation, can run frequently, ensure messages are linked back to their root disscussion topic
-      var fixOrphanMessages =  "UPDATE messages JOIN messages parent ON messages.retxid=parent.txid SET messages.roottxid = parent.roottxid, messages.topic = parent.topic WHERE messages.roottxid = '';";
+      var fixOrphanMessages = "UPDATE messages JOIN messages parent ON messages.retxid=parent.txid SET messages.roottxid = parent.roottxid, messages.topic = parent.topic WHERE messages.roottxid = '';";
       var fixOrphanMessages2 = "UPDATE privatemessages JOIN privatemessages parent ON privatemessages.retxid=parent.txid SET privatemessages.roottxid = parent.roottxid, privatemessages.toaddress = parent.toaddress, privatemessages.stamp = parent.stamp WHERE privatemessages.roottxid = '' AND privatemessages.address=parent.address;";
-      
+
       if (usesqlite) {
         fixOrphanMessages = "UPDATE messages SET (roottxid,topic) = (SELECT p.roottxid, p.topic FROM messages p WHERE messages.retxid=p.txid) WHERE messages.roottxid IS NULL;";
         fixOrphanMessages2 = "UPDATE privatemessages SET (roottxid,toaddress,stamp) = (SELECT m.roottxid, m.toaddress, m.stamp FROM privatemessages m WHERE privatemessages.retxid=m.txid AND privatemessages.address=m.address) WHERE privatemessages.roottxid IS NULL;";
@@ -555,7 +555,7 @@ var run = async function () {
     //FixOrphans probably doesn't need to be run so frequently and should probably be on its own thread
     mempoolSQL.push(fixOrphanMessages);
     mempoolSQL.push(fixOrphanMessages2);
-    
+
 
     if (usesqlite) {
       try {
@@ -608,6 +608,7 @@ var run = async function () {
       // The protoDescriptor object has the full package hierarchy
       var BCHRPC = protoDescriptor.pb;
       var client = new BCHRPC.bchrpc(bchdhost, grpc.credentials.createSsl(null));
+      
 
       //test if grpc bchd is working
       client.getBlockchainInfo({}, {}, (err, response) => {
@@ -778,7 +779,7 @@ var run = async function () {
           //Note, following a moderated result, the next result can also be a result that
           //has the same txid and should be moderated, although the moderated field is null.
           var moderatedtxid = "none";
-          var totalRowLength=rows.length;
+          var totalRowLength = rows.length;
           for (var i = 0; i < rows.length; i++) {
 
             //Check a result has been directly moderated
@@ -800,7 +801,7 @@ var run = async function () {
           }
 
           if (rows.length > 0) {
-            rows[0].unduplicatedlength=totalRowLength;
+            rows[0].unduplicatedlength = totalRowLength;
             rows[0].msc = msc;
             rows[0].query = query.replace(/\t/g, ' ').replace(/\n/g, ' ');
           }

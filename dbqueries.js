@@ -57,8 +57,14 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 	//TODO sqlite doesn't have POWER funciton, using a (significantly worse) approximation 
 	if (issqlite) timedivisor = `((` + sqltimestamp + `-messages.firstseen)/3600)*4+(3600*24)`;
 
-	var least = " ORDER BY (LEAST(reposts.likes+messages.likes,10)-LEAST(reposts.dislikes+messages.dislikes,10)+LEAST(messages.repliesuniquemembers+reposts.repliesuniquemembers,10)+LEAST(((reposts.tips+messages.tips)/10000),10))";
-	if (issqlite) least = " ORDER BY (MIN(reposts.likes+messages.likes,10)-MIN(reposts.dislikes+messages.dislikes,10)+MIN(messages.repliesuniquemembers+reposts.repliesuniquemembers,10)+MIN(((reposts.tips+messages.tips)/10000),10))";
+	var minfunction = "LEAST";
+	if (issqlite) minfunction = "MIN";
+
+	var least = " ORDER BY ("
+		+ minfunction + "( COALESCE(reposts.likes,0)+messages.likes ,10)-"
+		+ minfunction + "( COALESCE(reposts.dislikes,0)+messages.dislikes ,10)+"
+		+ minfunction + "( COALESCE(reposts.repliesuniquemembers,0)+messages.repliesuniquemembers ,10)+"
+		+ minfunction + "( (COALESCE(reposts.tips,0)+messages.tips) /10000,10))";
 
 	var sql = "SELECT VERSION();";
 
@@ -68,8 +74,11 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 	var select = `SELECT `;
 
 	var reposts = " LEFT JOIN messages as reposts ON messages.repost = reposts.txid ";
+	//var repostid = " LEFT JOIN messages as repostid ON messages.txid = repostid.repost AND repostid.address='" + address + "' ";
 
 	var likesanddislikes = " LEFT JOIN likesdislikes ON likesdislikes.address='" + address + "' AND likesdislikes.retxid=messages.txid ";
+	var rplikesanddislikes = " LEFT JOIN likesdislikes as rplikesdislikes ON rplikesdislikes.address='" + address + "' AND rplikesdislikes.retxid=messages.canonicalid ";
+	
 	var names = " LEFT JOIN names ON messages.address=names.address ";
 	var rpnames = " LEFT JOIN names as rpnames ON reposts.address=rpnames.address ";
 
@@ -121,12 +130,11 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		}
 
 		//todo - possible here that a blocked user might show up if they post in a topic the user is following
-		var followsORblocks = " LEFT JOIN blocks ON (messages.address=blocks.blocks OR reposts.address=blocks.blocks) AND blocks.blocks='" + address + "' WHERE blocks IS NULL ";
+		var followsORblocks = " LEFT JOIN blocks ON (messages.address=blocks.blocks OR reposts.address=blocks.blocks) AND blocks.address='" + address + "' WHERE blocks IS NULL ";
 		if (filter == "myfeed") { //My feed, posts from my subs or my peeps (does not exclude blocked members)
-			followsORblocks = ` LEFT JOIN follows ON messages.address=follows.follows 
-			LEFT JOIN subs ON messages.topic=subs.topic
-			WHERE (follows.address='` + address + `' 
-			OR subs.address='` + address + `') `;
+			followsORblocks = ` LEFT JOIN follows ON messages.address=follows.follows and follows.address='` + address + `'
+			LEFT JOIN subs ON messages.topic=subs.topic AND subs.address='` + address + `'
+			WHERE (follows.address is not null OR subs.address is not null) `;
 		} else if (filter == "mypeeps") {
 			followsORblocks = ` LEFT JOIN follows ON messages.address=follows.follows WHERE follows.address='` + address + `' `;
 		}
@@ -137,21 +145,19 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			followsORblocks = ` 
 			LEFT JOIN subs ON messages.topic=subs.topic 
 			LEFT JOIN blocks ON messages.address=blocks.blocks AND blocks.address='` + address + `'
-			WHERE blocks IS NULL AND subs.address='` + address + `' `;
+			WHERE (blocks IS NULL AND subs.address='` + address + `') `;
 		}
 
 		if (topicnameHOSTILE == "mytopics" && filter == "mypeeps") {
-			followsORblocks = ` LEFT JOIN follows ON messages.address=follows.follows 
-			LEFT JOIN subs ON messages.topic=subs.topic
-			WHERE (follows.address='` + address + `' 
-			AND subs.address='` + address + `') `;
+			followsORblocks = ` LEFT JOIN follows ON messages.address=follows.follows and follows.address='` + address + `'
+			LEFT JOIN subs ON messages.topic=subs.topic AND subs.address='` + address + `'
+			WHERE (follows.follows is not null and subs.topic is not null) `;
 		}
 
 		if (topicnameHOSTILE == "myfeed" || filter == "myfeed") {
-			followsORblocks = ` LEFT JOIN follows ON messages.address=follows.follows 
-			LEFT JOIN subs ON messages.topic=subs.topic
-			WHERE (follows.address='` + address + `' 
-			OR subs.address='` + address + `') `;
+			followsORblocks = ` LEFT JOIN follows ON messages.address=follows.follows and follows.address='` + address + `'
+			LEFT JOIN subs ON messages.topic=subs.topic and subs.address='` + address + `'
+			WHERE (follows.follows is not null or subs.topic is not null) `;
 		}
 
 
@@ -180,21 +186,27 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		var specificuser = "";
 		if (qaddress != "" && qaddress != "undefined") {
 			specificuser = ` AND messages.address='` + qaddress + `' `;
+			followsORblocks =" WHERE 1=1 ";
+			firstseen = " ";
 		}
 
 		//todo, for no retweets it would be more efficient not to join the table in the first place
 		var noreposts = "";
-		if(filter=="everyone" || filter=="" ){
-			noreposts=` AND messages.repost is NULL `;
-		}
+		/*if(filter=="everyone" || filter=="" ){
+			noreposts=` AND messages.repost IS NULL `;
+		}*/
 
-		sql = select + ` DISTINCT(messages.canonicalid), mods2.address as moderated, messages.*,
-				names.name,
-				rpnames.name as rpname, 
-				userratings.rating,
-				rpuserratings.rating as rprating, 
+		sql = select + ` MIN(messages.firstseen), MAX(mods2.address) as moderated, messages.*,
+		names.name,
+		rpnames.name as rpname, 
+		userratings.rating,
+		rpuserratings.rating as rprating, 
 		messages.repliesdirect as replies,
-		messages.repliesroot as repliesroot, 
+		messages.repliesroot as repliesroot,
+		likesdislikes.txid as likedtxid, 
+		likesdislikes.type as likeordislike,
+		rplikesdislikes.txid as rplikedtxid, 
+		rplikesdislikes.type as rplikeordislike,
 		reposts.address as rpaddress,
 		reposts.amount as rpamount,
 		reposts.dislikes as rpdislikes,
@@ -215,20 +227,22 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		reposts.topic as rptopic,
 		reposts.txid as rptxid,
 		reposts.repliesdirect as rpreplies,
-		reposts.repliesroot as rprepliesroot
+		reposts.repliesroot as rprepliesroot,
+		reposts.repostcount as rprepostcount
 		FROM messages as messages
-		` + reposts + ` 
+		` + reposts + `
 		` + userratings + `
 		` + rpuserratings + `
 		` + names + `
 		` + rpnames + `
+		` + likesanddislikes + `
+		` + rplikesanddislikes + `
 		` + mods + `
 		` + followsORblocks + `
 		` + postsOrComments + `
 		` + topicquery + `
 		` + specificuser + `
-		` + noreposts + `
-		` + firstseen + `
+		` + firstseen + ` GROUP BY messages.canonicalid, mods2.address   
 		` + orderby + ` LIMIT ` + start + `,` + limit;
 
 	}
@@ -278,6 +292,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			r.lon as rlon,
 			r.geohash as rgeohash,
 			r.repliesdirect as rreplies,
+			r.repostcount as rrepostcount,
 			rlikesdislikes.txid as rlikedtxid, 
 			rlikesdislikes.type as rlikeordislike,
 			l.address as laddress,
@@ -294,6 +309,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			l.lon as llon,
 			l.geohash as lgeohash,
 			l.repliesdirect as lreplies,
+			l.repostcount as lrepostcount,
 			llikesdislikes.txid as llikedtxid, 
 			llikesdislikes.type as llikeordislike
 			FROM notifications
@@ -433,7 +449,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			` + names + `
 			` + likesanddislikes + `
 			` + blocks + ` 
-			AND lat<'` + north + `' AND lat>'` + south + `' AND lon<'` + east + `' AND lon>'` + west + `' ` + orderby + ` AND lat!=NULL and lon!=NULL DESC LIMIT 25`;
+			AND lat<'` + north + `' AND lat>'` + south + `' AND lon<'` + east + `' AND lon>'` + west + `' ORDER BY messages.firstseen DESC LIMIT 25`;
 	}
 
 	//For member's page

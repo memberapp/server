@@ -89,7 +89,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
       var sentFrom = getFirstSendingAddressFromTX(tx.ins[0]);
 
       //Create post from slp creation
-      sql.push(insertignore + " into messages VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(slpTokenMessage) + "," + escapeFunction(txid) + "," + escapeFunction(time) + ",''," + escapeFunction(txid) + ",1,0,0," + escapeFunction('tokens') + "," + escapeFunction(null) + "," + escapeFunction(null) + "," + escapeFunction(null) + ",0,0,0,0,"+ escapeFunction(null) +"," + escapeFunction(txid) + ",0,'',0);");
+      sql.push(insertignore + " into messages VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(slpTokenMessage) + "," + escapeFunction(txid) + "," + escapeFunction(time) + ",''," + escapeFunction(txid) + ",1,0,0," + escapeFunction('tokens') + ",NULL,NULL,NULL,0,0,0,0,NULL," + escapeFunction(txid) + ",0,'',0);");
       //Assume author likes his own post
       sql.push(insertignore + " into likesdislikes VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(txid) + ",1," + escapeFunction(time) + "," + escapeFunction(txid) + ");");
       return sql;
@@ -190,7 +190,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           topic = topic.substr(0, MAXMESSAGE);
           geohash = geohash.substr(0, MAXGEOHASH);
 
-          sql.push(insertignore + " into messages VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(decode) + "," + escapeFunction(txid) + "," + escapeFunction(time) + ",''," + escapeFunction(txid) + ",1,0,0," + escapeFunction(topic) + "," + escapeFunction(lat) + "," + escapeFunction(long) + "," + escapeFunction(geohash) + ",0,0,0,0,"+escapeFunction(repostid)+"," + escapeFunction(canonicalid) + ",0,'',0);");
+          sql.push(insertignore + " into messages VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(decode) + "," + escapeFunction(txid) + "," + escapeFunction(time) + ",''," + escapeFunction(txid) + ",1,0,0," + escapeFunction(topic) + "," + (lat==null?"NULL":escapeFunction(lat)) + "," + (long==null?"NULL":escapeFunction(long)) + "," + escapeFunction(geohash) + ",0,0,0,0,"+ (repostid==null?"NULL":escapeFunction(repostid)) +"," + escapeFunction(canonicalid) + ",0,'',0);");
           //Assume author likes his own post
           sql.push(insertignore + " into likesdislikes VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(txid) + ",1," + escapeFunction(time) + "," + escapeFunction(txid) + ");");
 
@@ -200,7 +200,11 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           //For reposts
           if (operationCode == "6d0b") {
             //increase repost count
-            sql.push("UPDATE messages SET repostcount = (SELECT count(*) FROM messages WHERE repost=" + escapeFunction(repostid) + ")  WHERE txid=" + escapeFunction(repostid) + ";");
+            if(issqlite){
+              sql.push("UPDATE messages SET repostcount = (SELECT count(*) FROM messages WHERE repost=" + escapeFunction(repostid) + ")  WHERE txid=" + escapeFunction(repostid) + ";");
+            }else{
+              sql.push("UPDATE messages AS dest,(SELECT repost, COUNT(*) as count FROM messages WHERE repost=" + escapeFunction(repostid) + " GROUP BY repost) AS src SET dest.repostcount = src.count WHERE dest.txid = src.repost;");
+            }
 
             //add repost notification
             sql.push(insertignore + " into notifications VALUES(" + escapeFunction(repostid) + ",'repost',(SELECT address FROM messages WHERE txid = " + escapeFunction(repostid) + ")," + escapeFunction(sentFrom) + "," + escapeFunction(time) + ");");
@@ -232,7 +236,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
             sql.push(insertignore + " into likesdislikes VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(txid) + ",1," + escapeFunction(time) + "," + escapeFunction(txid) + ");");
           }
 
-          sql.push(insertignore + " into messages VALUES(" + escapeFunction(sentFrom) + "," + escapeFunction(decode) + "," + escapeFunction(txid) + "," + escapeFunction(time) + "," + escapeFunction(retxid) + ",''," + startingLikes + ",0,0,'',NULL,NULL,'',0,0,0,0,"+ escapeFunction(null) +"," + escapeFunction(txid) + ",0,'',0);");
+          sql.push(insertignore + " into messages VALUES(" + escapeFunction(sentFrom) + "," + escapeFunction(decode) + "," + escapeFunction(txid) + "," + escapeFunction(time) + "," + escapeFunction(retxid) + ",''," + startingLikes + ",0,0,'',NULL,NULL,'',0,0,0,0,NULL," + escapeFunction(txid) + ",0,'',0);");
 
           //Add roottxid - These are probably the slowest update queries         
           if (issqlite) {
@@ -469,7 +473,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
               `+ escapeFunction(note);
             }
 
-            sql.push(insertignore + " into messages VALUES (" + escapeFunction(sentFrom) + "," + concat + "," + escapeFunction(txid) + "," + escapeFunction(time) + ",''," + escapeFunction(txid) + ",1,0,0," + escapeFunction('ratings') + "," + escapeFunction(null) + "," + escapeFunction(null) + "," + escapeFunction('') + ",0,0,0,0,"+ escapeFunction(null) +"," + escapeFunction(txid) + ",0,'',0);");
+            sql.push(insertignore + " into messages VALUES (" + escapeFunction(sentFrom) + "," + concat + "," + escapeFunction(txid) + "," + escapeFunction(time) + ",''," + escapeFunction(txid) + ",1,0,0," + escapeFunction('ratings') + ",NULL,NULL," + escapeFunction('') + ",0,0,0,0,NULL," + escapeFunction(txid) + ",0,'',0);");
             sql.push(insertignore + " into likesdislikes VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(txid) + ",1," + escapeFunction(time) + "," + escapeFunction(txid) + ");");
 
             sql = sql.concat(getPageNotificationSQL(note, txid, sentFrom, time, escapeFunction, insertignore));
