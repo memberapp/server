@@ -74,7 +74,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 	var select = `SELECT `;
 
 	var reposts = " LEFT JOIN messages as reposts ON messages.repost = reposts.txid ";
-	//var repostid = " LEFT JOIN messages as repostid ON messages.txid = repostid.repost AND repostid.address='" + address + "' ";
+	var repostid = " LEFT JOIN messages as repostid ON messages.txid = repostid.repost AND repostid.address='" + address + "' ";
 
 	var likesanddislikes = " LEFT JOIN likesdislikes ON likesdislikes.address='" + address + "' AND likesdislikes.retxid=messages.txid ";
 	var rplikesanddislikes = " LEFT JOIN likesdislikes as rplikesdislikes ON rplikesdislikes.address='" + address + "' AND rplikesdislikes.retxid=messages.canonicalid ";
@@ -130,34 +130,35 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		}
 
 		//todo - possible here that a blocked user might show up if they post in a topic the user is following
-		var followsORblocks = " LEFT JOIN blocks ON (messages.address=blocks.blocks OR reposts.address=blocks.blocks) AND blocks.address='" + address + "' WHERE blocks IS NULL ";
+		var followsORblocks = " LEFT JOIN blocks ON (messages.address=blocks.blocks OR reposts.address=blocks.blocks) AND blocks.address='" + address + "' and blocks.blocks IS NULL ";
+		var followsWhere = "";
 		if (filter == "myfeed") { //My feed, posts from my subs or my peeps (does not exclude blocked members)
 			followsORblocks = ` LEFT JOIN follows ON messages.address=follows.follows and follows.address='` + address + `'
-			LEFT JOIN subs ON messages.topic=subs.topic AND subs.address='` + address + `'
-			WHERE (follows.address is not null OR subs.address is not null) `;
+			LEFT JOIN subs ON messages.topic=subs.topic AND subs.address='` + address + `' `;
+			followsWhere = ` and (follows.address is not null OR subs.address is not null) `;
 		} else if (filter == "mypeeps") {
-			followsORblocks = ` LEFT JOIN follows ON messages.address=follows.follows WHERE follows.address='` + address + `' `;
+			followsORblocks = ` LEFT JOIN follows ON messages.address=follows.follows and follows.address='` + address + `' `;
 		}
 
 
 
 		if (topicnameHOSTILE == "mytopics") { //Show topics, but not from blocked members
 			followsORblocks = ` 
-			LEFT JOIN subs ON messages.topic=subs.topic 
-			LEFT JOIN blocks ON messages.address=blocks.blocks AND blocks.address='` + address + `'
-			WHERE (blocks IS NULL AND subs.address='` + address + `') `;
+			LEFT JOIN subs ON messages.topic=subs.topic AND subs.address='` + address + `' 
+			LEFT JOIN blocks ON messages.address=blocks.blocks AND blocks.address='` + address + `' and blocks IS NULL `;
 		}
 
 		if (topicnameHOSTILE == "mytopics" && filter == "mypeeps") {
-			followsORblocks = ` LEFT JOIN follows ON messages.address=follows.follows and follows.address='` + address + `'
-			LEFT JOIN subs ON messages.topic=subs.topic AND subs.address='` + address + `'
-			WHERE (follows.follows is not null and subs.topic is not null) `;
+			followsORblocks = ` 
+			LEFT JOIN follows ON messages.address=follows.follows and follows.address='` + address + `' and follows.follows is not null
+			LEFT JOIN subs ON messages.topic=subs.topic AND subs.address='` + address + `' and subs.topic is not null
+			 `;
 		}
 
 		if (topicnameHOSTILE == "myfeed" || filter == "myfeed") {
 			followsORblocks = ` LEFT JOIN follows ON messages.address=follows.follows and follows.address='` + address + `'
-			LEFT JOIN subs ON messages.topic=subs.topic and subs.address='` + address + `'
-			WHERE (follows.follows is not null or subs.topic is not null) `;
+			LEFT JOIN subs ON messages.topic=subs.topic and subs.address='` + address + `' `;
+			followsWhere =` and (follows.follows is not null or subs.topic is not null) `;
 		}
 
 
@@ -186,7 +187,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		var specificuser = "";
 		if (qaddress != "" && qaddress != "undefined") {
 			specificuser = ` AND messages.address='` + qaddress + `' `;
-			followsORblocks =" WHERE 1=1 ";
+			followsORblocks =" ";
 			firstseen = " ";
 		}
 
@@ -231,14 +232,18 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		reposts.repostcount as rprepostcount
 		FROM messages as messages
 		` + reposts + `
+		` + mods + `
+		` + followsORblocks + `
+		
 		` + userratings + `
 		` + rpuserratings + `
 		` + names + `
 		` + rpnames + `
 		` + likesanddislikes + `
 		` + rplikesanddislikes + `
-		` + mods + `
-		` + followsORblocks + `
+
+		WHERE 1=1 
+		` + followsWhere  + `
 		` + postsOrComments + `
 		` + topicquery + `
 		` + specificuser + `
@@ -578,7 +583,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		topicname = topicname;
 		var usersearchHOSTILE = "%" + (queryData.searchterm.toLowerCase() || '') + "%";
 		//Searching the pagingid rather than the name for case insensitive search
-		sql = "SELECT names.*, userratings.rating as rating from names LEFT JOIN userratings ON names.address = userratings.rates AND userratings.address='" + address + "' where pagingid like " + escapeFunction(usersearchHOSTILE) + " LIMIT 10";
+		sql = "SELECT names.*, userratings.rating as rating from names LEFT JOIN userratings ON names.address = userratings.rates AND userratings.address='" + address + "' where pagingid like " + escapeFunction(usersearchHOSTILE) + " or name like " + escapeFunction(usersearchHOSTILE) + " LIMIT 10";
 	}
 
 	if (action == "messages") {
