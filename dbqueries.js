@@ -97,6 +97,18 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 	LEFT JOIN mods on (hiddenposts.modr = mods.modr OR hiddenusers.modr=mods.modr) AND (mods.topic=messages.topic OR mods.topic='')
 	LEFT JOIN mods as mods2 on mods2.modr=mods.address AND mods2.address='` + address + `' AND (mods2.topic=mods.topic OR mods2.topic='')`;
 
+	//topicname may contain hostile characters - be careful in handling it
+	var topicquery = " ";
+	var topiclistquery = " ";
+	
+	var topicnameHOSTILE = (queryData.topicname || '');
+	topicnameHOSTILE = topicnameHOSTILE.toLowerCase().trim();
+
+	if (topicnameHOSTILE != "" && topicnameHOSTILE != "mytopics" && topicnameHOSTILE != "myfeed") { //mytopics has special meaning
+		topicquery = " AND messages.topic=" + escapeFunction(topicnameHOSTILE) + " ";
+		topiclistquery = " AND topics.topic=" + escapeFunction(topicnameHOSTILE) + " ";
+
+	}
 
 	if (action == 'show') {
 
@@ -118,15 +130,6 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			postsOrComments = " AND messages.txid!=messages.roottxid ";
 		} else if (content == "posts") {
 			postsOrComments = " AND messages.roottxid=messages.txid ";
-		}
-
-		//topicname may contain hostile characters - be careful in handling it
-		var topicquery = " ";
-		var topicnameHOSTILE = (queryData.topicname || '');
-		topicnameHOSTILE = topicnameHOSTILE.toLowerCase();
-
-		if (topicnameHOSTILE != "" && topicnameHOSTILE != "mytopics" && topicnameHOSTILE != "myfeed") { //mytopics has special meaning
-			topicquery = " AND messages.topic=" + escapeFunction(topicnameHOSTILE) + " ";
 		}
 
 		//todo - possible here that a blocked user might show up if they post in a topic the user is following
@@ -371,6 +374,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		postsOrComments = " AND messages.roottxid=messages.txid ";
 	}
 
+	/*
 	if (action == "posts" || action == "comments") //be very careful with this, topicname may contain special characters
 	{
 		var topicquery = " ";
@@ -399,7 +403,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		` + topicquery + `
 		` + firstseen + `
 		` + orderby + ` DESC LIMIT ` + start + `,` + limit;
-	}
+	}*/
 
 	//Threads
 
@@ -542,6 +546,8 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			LEFT JOIN mods as allmods on allmods.topic=topics.topic and (allmods.modr=allmods.address)
 			LEFT JOIN names on names.address=allmods.modr
 			LEFT JOIN mods as mymods on allmods.modr =mymods.modr and mymods.address=subs.address 
+			WHERE 1=1 
+			` + topiclistquery + `
 			ORDER BY (topicname='') DESC, (subs.address='') DESC, ((messagescount+subscount*10)/((((`+ sqltimestamp + `-mostrecent)/(60*60))+2))*((((` + sqltimestamp + `-mostrecent)/(60*60))+2))) DESC
 			LIMIT 0,200`;
 	}
@@ -580,7 +586,6 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 	}
 
 	if (action == "usersearch") {
-		topicname = topicname;
 		var usersearchHOSTILE = "%" + (queryData.searchterm.toLowerCase() || '') + "%";
 		//Searching the pagingid rather than the name for case insensitive search
 		sql = "SELECT names.*, userratings.rating as rating from names LEFT JOIN userratings ON names.address = userratings.rates AND userratings.address='" + address + "' where pagingid like " + escapeFunction(usersearchHOSTILE) + " or name like " + escapeFunction(usersearchHOSTILE) + " LIMIT 10";

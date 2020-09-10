@@ -152,7 +152,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           var repostid= null;
           if (messages.length > 1) {
             if (operationCode == "6d0c") { //topic
-              topic = decode.toLowerCase();
+              topic = decode.toLowerCase().trim();
             } else if (operationCode == "6da8") { //geotagged
               try {
                 geohash = decode;
@@ -384,7 +384,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
        
         case "6d0d": //Topic follow 	0x6d0d 	topic_name(variable) 	Implemented
           var decode = fromHex(messages[0]);
-          var topic = decode.toLowerCase();
+          var topic = decode.toLowerCase().trim();
           topic = topic.substr(0, MAXMESSAGE);
           var sentFrom = getFirstSendingAddressFromTX(tx.ins[0]);
           sql.push(insertignore + " into subs VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(topic) + "," + escapeFunction(txid) + "," + escapeFunction(time) + ");");
@@ -392,7 +392,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           break;
         case "6d0e": //Topic unfollow 	0x6d0e 	topic_name(variable) 	Implemented
           var decode = fromHex(messages[0]);
-          var topic = decode.toLowerCase();
+          var topic = decode.toLowerCase().trim();
           topic = topic.substr(0, MAXMESSAGE);
           var sentFrom = getFirstSendingAddressFromTX(tx.ins[0]);
           sql.push("delete from subs WHERE address=" + escapeFunction(sentFrom) + " AND topic=" + escapeFunction(topic) + ";");
@@ -487,7 +487,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           var topic = "";
           if (messages.length > 1) {
             var decode = fromHex(messages[1]);
-            var topic = decode.toLowerCase();
+            var topic = decode.toLowerCase().trim();
             topic = topic.substr(0, MAXMESSAGE);
           }
           sql.push(insertignore + " into mods VALUES (" + escapeFunction(address) + "," + escapeFunction(sentFrom) + "," + escapeFunction(topic) + ");");
@@ -500,7 +500,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           var topic = "";
           if (messages.length > 1) {
             var decode = fromHex(messages[1]);
-            var topic = decode.toLowerCase();
+            var topic = decode.toLowerCase().trim();
             topic = topic.substr(0, MAXMESSAGE);
           }
           sql.push("delete from mods WHERE modr=" + escapeFunction(address) + " AND address=" + escapeFunction(sentFrom) + " AND topic=" + escapeFunction(topic) + ";");
@@ -513,7 +513,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           var topic = "";
           if (messages.length > 1) {
             var decode = fromHex(messages[1]);
-            var topic = decode.toLowerCase();
+            var topic = decode.toLowerCase().trim();
             topic = topic.substr(0, MAXMESSAGE);
           }
           sql.push(insertignore + " into hiddenusers VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(address) + "," + escapeFunction(topic) + ");");
@@ -526,7 +526,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           var topic = "";
           if (messages.length > 1) {
             var decode = fromHex(messages[1]);
-            var topic = decode.toLowerCase();
+            var topic = decode.toLowerCase().trim();
             topic = topic.substr(0, MAXMESSAGE);
           }
           sql.push("delete from hiddenusers WHERE modr=" + escapeFunction(sentFrom) + " AND address=" + escapeFunction(address) + " AND topic=" + escapeFunction(topic) + ";");
