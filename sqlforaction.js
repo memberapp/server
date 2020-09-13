@@ -27,6 +27,11 @@ const MAXMESSAGE = 220;
 const MAXHEXMESSAGE = 440;
 const MAXGEOHASH = 16;
 
+//const LanguageDetect = require('languagedetect');
+//const lngDetector = new LanguageDetect();
+//lngDetector.setLanguageType('iso2');
+//const cld = require('cld');
+
 function processOPDATA(hexdata, maxterms) {
   if (maxterms == null) { maxterms = 5; }
   var opdata = [];
@@ -189,6 +194,17 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           decode = decode.substr(0, MAXMESSAGE);
           topic = topic.substr(0, MAXMESSAGE);
           geohash = geohash.substr(0, MAXGEOHASH);
+
+          var lang="";
+          /*try{
+            const result = await cld.detect(decode);
+            console.log(result, decode);
+            
+          } catch(err){
+            console.log(err);
+            //Nothing
+          }*/
+
 
           sql.push(insertignore + " into messages VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(decode) + "," + escapeFunction(txid) + "," + escapeFunction(time) + ",''," + escapeFunction(txid) + ",1,0,0," + escapeFunction(topic) + "," + (lat==null?"NULL":escapeFunction(lat)) + "," + (long==null?"NULL":escapeFunction(long)) + "," + escapeFunction(geohash) + ",0,0,0,0,"+ (repostid==null?"NULL":escapeFunction(repostid)) +"," + escapeFunction(canonicalid) + ",0,'',0);");
           //Assume author likes his own post
@@ -459,16 +475,16 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
 
             let concat = `CONCAT(
               "@",
-              (SELECT pagingid FROM names WHERE address = ` + escapeFunction(sentFrom) + `),
+              COALESCE((SELECT pagingid FROM names WHERE address = ` + escapeFunction(sentFrom) + `),` + escapeFunction(sentFrom) + `),
               " rated @",
-              (SELECT pagingid FROM names WHERE address = ` + escapeFunction(userAddress) + `),
+              COALESCE((SELECT pagingid FROM names WHERE address = ` + escapeFunction(userAddress) + `),` + escapeFunction(userAddress) + `),
               " as ` + (Math.round(Number(rating) / 64) + 1) + `/5: ",
               `+ escapeFunction(note) + `
             )`;
 
             if (issqlite) {
-              concat = `"@" || (SELECT pagingid FROM names WHERE address = ` + escapeFunction(sentFrom) + `) || " rated @" ||
-              (SELECT pagingid FROM names WHERE address = ` + escapeFunction(userAddress) + `) ||
+              concat = `"@" || COALESCE((SELECT pagingid FROM names WHERE address = ` + escapeFunction(sentFrom) + `),` + escapeFunction(sentFrom) + `) || " rated @" ||
+              COALESCE((SELECT pagingid FROM names WHERE address = ` + escapeFunction(userAddress) + `),` + escapeFunction(userAddress) + `) ||
               " as ` + (Math.round(Number(rating) / 64) + 1) + `/5: " ||
               `+ escapeFunction(note);
             }

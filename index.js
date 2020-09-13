@@ -32,6 +32,7 @@ var run = async function () {
   var bitcoinJs = require('bitcoinjs-lib');
   var RpcClient = require('bitcoind-rpc');
 
+
   //Configuration settings
   var secondsToWaitonStart = config.secondsToWaitonStart;
   var secondsToWaitBetweenProcessingBlocks = config.secondsToWaitBetweenProcessingBlocks;
@@ -607,7 +608,15 @@ var run = async function () {
       var protoDescriptor = grpc.loadPackageDefinition(packageDefinition);
       // The protoDescriptor object has the full package hierarchy
       var BCHRPC = protoDescriptor.pb;
-      var client = new BCHRPC.bchrpc(bchdhost, grpc.credentials.createSsl(null));
+      var cert = null;
+      try{
+        if(config.certpem!=null){
+          cert = fs.readFileSync(config.certpem);
+        }
+      }catch(err){
+        console.log("local certificate not loaded for GRPC "+err);
+      }
+      var client = new BCHRPC.bchrpc(bchdhost, grpc.credentials.createSsl(cert));
       
 
       //test if grpc bchd is working

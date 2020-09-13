@@ -133,29 +133,32 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		}
 
 		//todo - possible here that a blocked user might show up if they post in a topic the user is following
-		var followsORblocks = " LEFT JOIN blocks ON (messages.address=blocks.blocks OR reposts.address=blocks.blocks) AND blocks.address='" + address + "' and blocks.blocks IS NULL ";
-		var followsWhere = "";
+		var followsORblocks = " LEFT JOIN blocks ON (messages.address=blocks.blocks OR reposts.address=blocks.blocks) AND blocks.address='" + address + "'";
+		var followsWhere = " and blocks.blocks IS NULL ";
+		
 		if (filter == "myfeed") { //My feed, posts from my subs or my peeps (does not exclude blocked members)
 			followsORblocks = ` LEFT JOIN follows ON messages.address=follows.follows and follows.address='` + address + `'
 			LEFT JOIN subs ON messages.topic=subs.topic AND subs.address='` + address + `' `;
 			followsWhere = ` and (follows.address is not null OR subs.address is not null) `;
 		} else if (filter == "mypeeps") {
 			followsORblocks = ` LEFT JOIN follows ON messages.address=follows.follows and follows.address='` + address + `' `;
+			followsWhere = "";
 		}
 
 
 
 		if (topicnameHOSTILE == "mytopics") { //Show topics, but not from blocked members
 			followsORblocks = ` 
-			LEFT JOIN subs ON messages.topic=subs.topic AND subs.address='` + address + `' 
-			LEFT JOIN blocks ON messages.address=blocks.blocks AND blocks.address='` + address + `' and blocks IS NULL `;
+			LEFT JOIN subs ON messages.topic=subs.topic  
+			LEFT JOIN blocks ON messages.address=blocks.blocks AND blocks.address='` + address + `'`;
+			followsWhere = ` and blocks.blocks IS NULL AND subs.address='` + address + `' `;
 		}
 
 		if (topicnameHOSTILE == "mytopics" && filter == "mypeeps") {
 			followsORblocks = ` 
 			LEFT JOIN follows ON messages.address=follows.follows and follows.address='` + address + `' and follows.follows is not null
-			LEFT JOIN subs ON messages.topic=subs.topic AND subs.address='` + address + `' and subs.topic is not null
-			 `;
+			LEFT JOIN subs ON messages.topic=subs.topic `;
+			 followsWhere = ` AND subs.address='` + address + `' `;
 		}
 
 		if (topicnameHOSTILE == "myfeed" || filter == "myfeed") {
@@ -191,6 +194,8 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		if (qaddress != "" && qaddress != "undefined") {
 			specificuser = ` AND messages.address='` + qaddress + `' `;
 			followsORblocks =" ";
+			followsWhere =" ";
+			
 			firstseen = " ";
 		}
 
