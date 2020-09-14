@@ -74,7 +74,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 	var select = `SELECT `;
 
 	var reposts = " LEFT JOIN messages as reposts ON messages.repost = reposts.txid ";
-	var repostid = " LEFT JOIN messages as repostid ON messages.txid = repostid.repost AND repostid.address='" + address + "' ";
+	var repostid = " LEFT JOIN messages as repostid ON messages.canonicalid = repostid.repost AND repostid.address='" + address + "' ";
 
 	var likesanddislikes = " LEFT JOIN likesdislikes ON likesdislikes.address='" + address + "' AND likesdislikes.retxid=messages.txid ";
 	var rplikesanddislikes = " LEFT JOIN likesdislikes as rplikesdislikes ON rplikesdislikes.address='" + address + "' AND rplikesdislikes.retxid=messages.canonicalid ";
@@ -237,7 +237,8 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		reposts.txid as rptxid,
 		reposts.repliesdirect as rpreplies,
 		reposts.repliesroot as rprepliesroot,
-		reposts.repostcount as rprepostcount
+		reposts.repostcount as rprepostcount,
+		repostid.txid as repostidtxid
 		FROM messages as messages
 		` + reposts + `
 		` + mods + `
@@ -249,6 +250,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		` + rpnames + `
 		` + likesanddislikes + `
 		` + rplikesanddislikes + `
+		` + repostid + `
 
 		WHERE 1=1 
 		` + followsWhere  + `
