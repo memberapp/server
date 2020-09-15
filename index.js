@@ -835,8 +835,8 @@ var run = async function () {
         // Send back a response and end the connection
         console.log("sendtransaction error:" + err);
         res.writeHead(500);
-        res.end(`{"error":"` + sanitizeAlphanumeric(err.message) + `"}`);
-        console.log("sendtransaction error:" + err.message);
+        res.end(`{"error":"` + sanitizeAlphanumeric(err.message) + `", "code":"` + Number(err.code) + `"}`);
+        console.log("sendtransaction error:" + err.code + " " + err.message);
         return;
       }
 

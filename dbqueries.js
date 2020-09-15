@@ -75,7 +75,8 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 
 	var reposts = " LEFT JOIN messages as reposts ON messages.repost = reposts.txid ";
 	var repostid = " LEFT JOIN messages as repostid ON messages.canonicalid = repostid.repost AND repostid.address='" + address + "' ";
-
+	var repostvar = " ,repostid.txid as repostidtxid ";
+	
 	var likesanddislikes = " LEFT JOIN likesdislikes ON likesdislikes.address='" + address + "' AND likesdislikes.retxid=messages.txid ";
 	var rplikesanddislikes = " LEFT JOIN likesdislikes as rplikesdislikes ON rplikesdislikes.address='" + address + "' AND rplikesdislikes.retxid=messages.canonicalid ";
 	
@@ -195,8 +196,15 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			specificuser = ` AND messages.address='` + qaddress + `' `;
 			followsORblocks =" ";
 			followsWhere =" ";
-			
 			firstseen = " ";
+
+			//todo
+			//on sqllite, specific user query and reposttxid work very slowly together. no idea why.
+			//probably some index could be added
+			if (issqlite){
+				repostid = " ";
+				repostvar = " ";
+			}
 		}
 
 		//todo, for no retweets it would be more efficient not to join the table in the first place
@@ -237,8 +245,8 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		reposts.txid as rptxid,
 		reposts.repliesdirect as rpreplies,
 		reposts.repliesroot as rprepliesroot,
-		reposts.repostcount as rprepostcount,
-		repostid.txid as repostidtxid
+		reposts.repostcount as rprepostcount 
+		` +	repostvar + `
 		FROM messages as messages
 		` + reposts + `
 		` + mods + `
