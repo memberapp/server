@@ -587,7 +587,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 				AND u2.rating!=191
 				AND u1.address='` + address + `' 
 				AND u2.rates = '` + qaddress + `'
-				AND u2.address!=u1.address ORDER by u1.rating DESC, u2.rating DESC;`;
+				ORDER by u1.rating DESC, u2.rating DESC;`;
 	}
 
 	if (action == "bootstrap1") {
