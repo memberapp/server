@@ -154,7 +154,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           var geohash = "";
           var lat = null;
           var long = null;
-          var repostid= null;
+          var repostid = null;
           if (messages.length > 1) {
             if (operationCode == "6d0c") { //topic
               topic = decode.toLowerCase().trim();
@@ -180,12 +180,12 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
 
           //Canonicalid will be the same as the txid, expect for reposts
           //This field helps to avoid seeing the same reposts over and over as new content. 
-          var canonicalid=txid;
+          var canonicalid = txid;
           if (operationCode == "6d0b") { //Repost memo 	
             repostid = messages[0].match(/[a-fA-F0-9]{2}/g).reverse().join('');
             repostid = repostid.substr(0, MAXTXID);
-            canonicalid=repostid;
-            if (messages.length > 1){
+            canonicalid = repostid;
+            if (messages.length > 1) {
               decode = fromHex(messages[1]);
             }
           }
@@ -195,7 +195,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           topic = topic.substr(0, MAXMESSAGE);
           geohash = geohash.substr(0, MAXGEOHASH);
 
-          var lang="";
+          var lang = "";
           /*try{
             const result = await cld.detect(decode);
             console.log(result, decode);
@@ -206,7 +206,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           }*/
 
 
-          sql.push(insertignore + " into messages VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(decode) + "," + escapeFunction(txid) + "," + escapeFunction(time) + ",''," + escapeFunction(txid) + ",1,0,0," + escapeFunction(topic) + "," + (lat==null?"NULL":escapeFunction(lat)) + "," + (long==null?"NULL":escapeFunction(long)) + "," + escapeFunction(geohash) + ",0,0,0,0,"+ (repostid==null?"NULL":escapeFunction(repostid)) +"," + escapeFunction(canonicalid) + ",0,'',0);");
+          sql.push(insertignore + " into messages VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(decode) + "," + escapeFunction(txid) + "," + escapeFunction(time) + ",''," + escapeFunction(txid) + ",1,0,0," + escapeFunction(topic) + "," + (lat == null ? "NULL" : escapeFunction(lat)) + "," + (long == null ? "NULL" : escapeFunction(long)) + "," + escapeFunction(geohash) + ",0,0,0,0," + (repostid == null ? "NULL" : escapeFunction(repostid)) + "," + escapeFunction(canonicalid) + ",0,'',0);");
           //Assume author likes his own post
           sql.push(insertignore + " into likesdislikes VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(txid) + ",1," + escapeFunction(time) + "," + escapeFunction(txid) + ");");
 
@@ -216,9 +216,9 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           //For reposts
           if (operationCode == "6d0b") {
             //increase repost count
-            if(issqlite){
+            if (issqlite) {
               sql.push("UPDATE messages SET repostcount = (SELECT count(*) FROM messages WHERE repost=" + escapeFunction(repostid) + ")  WHERE txid=" + escapeFunction(repostid) + ";");
-            }else{
+            } else {
               sql.push("UPDATE messages AS dest,(SELECT repost, COUNT(*) as count FROM messages WHERE repost=" + escapeFunction(repostid) + " GROUP BY repost) AS src SET dest.repostcount = src.count WHERE dest.txid = src.repost;");
             }
 
@@ -397,7 +397,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           break;
         case "6d0a": //Set profile picture 	0x6d10 	imghash(16), url(61)
           break;
-       
+
         case "6d0d": //Topic follow 	0x6d0d 	topic_name(variable) 	Implemented
           var decode = fromHex(messages[0]);
           var topic = decode.toLowerCase().trim();
@@ -473,7 +473,9 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
             sql.push("replace into userratings VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(userAddress) + "," + escapeFunction(rating) + "," + escapeFunction(note) + "," + escapeFunction(txid) + "," + escapeFunction(time) + ");");
             sql.push(insertignore + " into notifications VALUES(" + escapeFunction(txid) + ",'rating'," + escapeFunction(userAddress) + "," + escapeFunction(sentFrom) + "," + escapeFunction(time) + ");");
 
-            let concat = `CONCAT(
+            //don't make a new post if there is no comment
+            if (note != "" && note != "follows") {
+              let concat = `CONCAT(
               "@",
               COALESCE((SELECT pagingid FROM names WHERE address = ` + escapeFunction(sentFrom) + `),` + escapeFunction(sentFrom) + `),
               " rated @",
@@ -482,15 +484,16 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
               `+ escapeFunction(note) + `
             )`;
 
-            if (issqlite) {
-              concat = `"@" || COALESCE((SELECT pagingid FROM names WHERE address = ` + escapeFunction(sentFrom) + `),` + escapeFunction(sentFrom) + `) || " rated @" ||
+              if (issqlite) {
+                concat = `"@" || COALESCE((SELECT pagingid FROM names WHERE address = ` + escapeFunction(sentFrom) + `),` + escapeFunction(sentFrom) + `) || " rated @" ||
               COALESCE((SELECT pagingid FROM names WHERE address = ` + escapeFunction(userAddress) + `),` + escapeFunction(userAddress) + `) ||
               " as ` + (Math.round(Number(rating) / 64) + 1) + `/5: " ||
               `+ escapeFunction(note);
-            }
+              }
 
-            sql.push(insertignore + " into messages VALUES (" + escapeFunction(sentFrom) + "," + concat + "," + escapeFunction(txid) + "," + escapeFunction(time) + ",''," + escapeFunction(txid) + ",1,0,0," + escapeFunction('ratings') + ",NULL,NULL," + escapeFunction('') + ",0,0,0,0,NULL," + escapeFunction(txid) + ",0,'',0);");
-            sql.push(insertignore + " into likesdislikes VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(txid) + ",1," + escapeFunction(time) + "," + escapeFunction(txid) + ");");
+              sql.push(insertignore + " into messages VALUES (" + escapeFunction(sentFrom) + "," + concat + "," + escapeFunction(txid) + "," + escapeFunction(time) + ",''," + escapeFunction(txid) + ",1,0,0," + escapeFunction('ratings') + ",NULL,NULL," + escapeFunction('') + ",0,0,0,0,NULL," + escapeFunction(txid) + ",0,'',0);");
+              sql.push(insertignore + " into likesdislikes VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(txid) + ",1," + escapeFunction(time) + "," + escapeFunction(txid) + ");");
+            }
 
             sql = sql.concat(getPageNotificationSQL(note, txid, sentFrom, time, escapeFunction, insertignore));
           }
@@ -587,12 +590,12 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           var messagetext = messages[1];
           messagetext = messagetext.substr(0, MAXHEXMESSAGE);
           var sentFrom = getFirstSendingAddressFromTX(tx.ins[0]);
-          sql.push(insertignore + " into privatemessages VALUES (" + escapeFunction(txid) + "," + escapeFunction(retxid) + "," + escapeFunction('') + "," + escapeFunction(sentFrom) + "," + escapeFunction(messagetext) + "," + escapeFunction('') + "," + escapeFunction('') + "," + escapeFunction(time)  + ");");
+          sql.push(insertignore + " into privatemessages VALUES (" + escapeFunction(txid) + "," + escapeFunction(retxid) + "," + escapeFunction('') + "," + escapeFunction(sentFrom) + "," + escapeFunction(messagetext) + "," + escapeFunction('') + "," + escapeFunction('') + "," + escapeFunction(time) + ");");
 
           //Make sure reply has the same roottxid and topic as parent, sometimes this won't be available, there is a housekeeping operation to fill it in later if so
-          if(issqlite){
+          if (issqlite) {
             sql.push("UPDATE privatemessages SET (roottxid,toaddress,stamp) = (SELECT m.roottxid, m.toaddress, m.stamp FROM privatemessages m WHERE txid=" + escapeFunction(retxid) + ") WHERE privatemessages.txid=" + escapeFunction(txid) + " AND privatemessages.address=" + escapeFunction(sentFrom) + ";");
-          }else{
+          } else {
             sql.push("UPDATE privatemessages JOIN privatemessages parent ON privatemessages.retxid=parent.txid SET privatemessages.roottxid = parent.roottxid, privatemessages.toaddress = parent.toaddress, privatemessages.stamp = parent.stamp WHERE privatemessages.address = " + escapeFunction(sentFrom) + " AND privatemessages.txid=" + escapeFunction(txid) + ";");
           }
 

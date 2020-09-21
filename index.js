@@ -55,6 +55,8 @@ var run = async function () {
   var usesqlite = config.usesqlite;
   var sqldbfile = config.sqldbfile;
   var AccessControlAllowOrigin = config.AccessControlAllowOrigin;
+  var pathtoindex = config.pathtoindex;
+  var bchdcertpem = config.bchdcertpem;
 
   //Conditionally included libs
 
@@ -609,15 +611,15 @@ var run = async function () {
       // The protoDescriptor object has the full package hierarchy
       var BCHRPC = protoDescriptor.pb;
       var cert = null;
-      try{
-        if(config.certpem!=null){
-          cert = fs.readFileSync(config.certpem);
+      try {
+        if (bchdcertpem != null) {
+          cert = fs.readFileSync(bchdcertpem);
         }
-      }catch(err){
-        console.log("local certificate not loaded for GRPC "+err);
+      } catch (err) {
+        console.log("local certificate not loaded for GRPC " + err);
       }
       var client = new BCHRPC.bchrpc(bchdhost, grpc.credentials.createSsl(cert));
-      
+
 
       //test if grpc bchd is working
       client.getBlockchainInfo({}, {}, (err, response) => {
@@ -668,6 +670,15 @@ var run = async function () {
   //HTTP server to handle providing utxos and putting trxs in the mempool
   if (httpserverenabled || httpsserverenabled) {
 
+    var indexfile = "";
+    var indexparts = [];
+    try {
+      indexfile = fs.readFileSync(pathtoindex).toString('utf-8');
+      indexparts = indexfile.split("<!--INSERTMETADATA-->").join('<!--INSERTCONTENT-->').split("<!--INSERTCONTENT-->");
+    } catch (err) {
+      console.log("Failed to load index.html file " + err);
+    }
+
     try {
 
       if (httpserverenabled) {
@@ -694,9 +705,10 @@ var run = async function () {
 
     async function webServer(req, res) {
       console.log("webserver request received");
-      res.writeHead(200, { "Access-Control-Allow-Origin": AccessControlAllowOrigin, 'Content-Type': 'application/json; charset=utf-8' });
+
       try {
         if (req.url.startsWith("/v2/address/utxo/bitcoincash:")) {
+          res.writeHead(200, { "Access-Control-Allow-Origin": AccessControlAllowOrigin, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-cache' });
           let address = sanitizeAlphanumeric(req.url.substr(29));
           if (address.length > 120) {
             res.end(`{"error":"Address Too Long"}`);
@@ -710,6 +722,7 @@ var run = async function () {
             res.end(`{"error":"BCHD GRPC - Not Supported"}`);
           }
         } else if (req.url.startsWith("/v2/rawtransactions/sendRawTransaction/")) {
+          res.writeHead(200, { "Access-Control-Allow-Origin": AccessControlAllowOrigin, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-cache' });
           console.log("webserver transaction received");
           let transaction = sanitizeAlphanumeric(req.url.substr(39));
           if (transaction.length > acceptmaxtrxsize) { //Max 5K transaction
@@ -719,8 +732,8 @@ var run = async function () {
           console.log("sending transaction to rpc:" + transaction);
           rpc.sendRawTransaction(transaction, function (err, ret) { sendTransaction(err, ret, res, transaction); });
           return;
-        } else if (req.url.startsWith("/member.js?action=")) {
-
+        } else if (req.url.startsWith("/v2/member.js?action=")) {
+          res.writeHead(200, { "Access-Control-Allow-Origin": AccessControlAllowOrigin, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-cache' });
           try {
 
             //Run query
@@ -730,34 +743,67 @@ var run = async function () {
             if (!mempoolprocessingstarted) { timestampToUse = lastblocktimestamp; }
             var query = dbqueries.getQuery(req, url, usesqlite, escapeFunction, timestampToUse);
 
-            //sql
-            if (usesqlite) {
-              var dbweb = await sqlite.open(sqldbfile);
-              try {
-                var result = await dbweb.all(query);
-                return returnQuery(null, result, res, dbweb, msc, query);
-              } catch (e) {
-                console.log(query);
-                return returnQuery(e, null, res, dbweb, msc, query);
-              }
-            } else {
-
-              //Open database connection
-              var dbweb = mysql.createConnection(dbconfig);
-              dbweb.connect(function (err) { if (err) throw err; });
-              dbweb.query("SET NAMES 'utf8mb4'; USE " + dbname + ";" + query, function (err, result) { returnQuery(err, result[2], res, dbweb, msc, query) });
-              return;
-            }
+            return runQuery(returnQuery, res, msc, query);
 
           } catch (err) {
             console.log(err);
           }
 
+        } else if (req.url.startsWith("/p/")) {
+          console.log(req.url);
+          res.writeHead(200, { "Access-Control-Allow-Origin": AccessControlAllowOrigin, 'Content-Type': 'text/html; charset=utf-8' });
+          //get first 10 characters, sanitized
+          var first10 = sanitizeAlphanumeric(req.url.substr(3, 13));
+          if (first10.length < 10) {
+            res.end(`{"error":"Not Supported"}`);
+            return;
+          }
 
-        } else {
+          //Get the 10 posts in the same thread posted closest, with the referenced post first
+          var query = `SELECT DISTINCT(messages.txid), messages.*, names.* FROM messages as messages3 LEFT JOIN messages ON messages.roottxid=messages3.roottxid LEFT JOIN names ON messages.address=names.address `
+            + `WHERE 1=1 AND messages3.txid LIKE '` + first10 + `%' AND messages3.roottxid!='' ORDER BY messages.txid!=messages3.txid, ABS(messages.firstseen-messages3.firstseen) ASC LIMIT 10`;
+
+          //sql
+          return runQuery(returnPost, res, msc, query, 'post');
+
+
+        } else if (req.url.startsWith("/t/")) {
+          console.log(req.url);
+          res.writeHead(200, { "Access-Control-Allow-Origin": AccessControlAllowOrigin, 'Content-Type': 'text/html; charset=utf-8' });
+          var topicHOSTILE = req.url.substr(3, 220);
+          topicHOSTILE = topicHOSTILE.trim();
+          if (topicHOSTILE.length < 1) {
+            res.end(`{"error":"Not Supported"}`);
+            return;
+          }
+
+          //Get the 10 posts in the same thread posted closest, with the referenced post first
+          var query = `SELECT *, names.* FROM messages LEFT JOIN names ON messages.address=names.address WHERE txid=roottxid AND topic = ` + escapeFunction(topicHOSTILE) + ` ORDER BY firstseen DESC LIMIT 20`;
+
+          return runQuery(returnPost, res, msc, query, 'topic');
+
+
+        } else if (req.url.startsWith("/m/")) {
+          console.log(req.url);
+          res.writeHead(200, { "Access-Control-Allow-Origin": AccessControlAllowOrigin, 'Content-Type': 'text/html; charset=utf-8' });
+          var pagingIDHOSTILE = req.url.substr(3, 220).toLowerCase().trim().replace('@','');
+          if (pagingIDHOSTILE.length < 1) {
+            res.end(`{"error":"Not Supported"}`);
+            return;
+          }
+
+          var query = `SELECT *, messages.* FROM names LEFT JOIN messages ON messages.address=names.address WHERE pagingid = ` + escapeFunction(pagingIDHOSTILE) + ` ORDER BY firstseen DESC LIMIT 20 `;
+
+          return runQuery(returnPost, res, msc, query, 'member');
+
+
+        }
+        else {
+          res.writeHead(404, { "Content-Type": "text/plain" });
+          res.write("404 Not Found\n");
+          res.end();
           console.log("Not Supported");
           console.log(req.url);
-          res.end(`{"error":"Not Supported"}`);
           return;
         }
       } catch (err) {
@@ -767,6 +813,189 @@ var run = async function () {
       return;
     }
 
+    async function runQuery(processingFunction, res, msc, query, type) {
+      //sql
+      if (usesqlite) {
+        var dbweb = await sqlite.open(sqldbfile);
+        try {
+          var result = await dbweb.all(query);
+          return processingFunction(null, result, res, dbweb, msc, query, type);
+        } catch (e) {
+          console.log(query);
+          return processingFunction(e, null, res, dbweb, msc, query, type);
+        }
+      } else {
+
+        //Open database connection
+        var dbweb = mysql.createConnection(dbconfig);
+        dbweb.connect(function (err) { if (err) throw err; });
+        dbweb.query("SET NAMES 'utf8mb4'; USE " + dbname + ";" + query, function (err, result) { processingFunction(err, result[2], res, dbweb, msc, query, type) });
+        return;
+      }
+    }
+
+
+    function returnPost(err, rows, res, dbloc, msc, query, type) {
+      //This function must close the db connection and end the result
+      try {
+        if (dbloc.end) dbloc.end();
+        if (dbloc.close) dbloc.close();
+      } catch (e2) {
+        console.log(e2);
+      }
+
+      if (err) {
+        console.log(err);
+      } else {
+
+        //
+        try {
+          res.write(indexparts[0]);
+          res.write("<!--Extra Metadata-->");
+          res.write(`<base href="../">`);
+
+          var imageLink = "";
+          if (rows.length > 0) {
+            if (type == "post") {
+
+              res.write(`<meta name="description" content="` + ds(rows[0].message) + `">
+            <meta name="twitter:card" content="summary_large_image">
+            <meta name="twitter:title" content="` + ds(rows[0].message) + `">
+            <meta name="twitter:description" content="`+ ds(rows[0].message) + `">
+            <meta name="og:title" content="` + ds(rows[0].message) + `">
+            <meta name="og:description" content="`+ ds(rows[0].message) + `"></meta>`);
+
+              //look for an imgur / youtube
+              var completeComments = "";
+              for (var i = 0; i < rows.length; i++) {
+                completeComments += rows[i].message + " ";
+              }
+
+              var imgurRegex = /[\s\S]*?(?:https?:\/\/)?(\w+\.)?imgur\.com(\/|\/a\/|\/gallery\/)(?!gallery)([\w\-_]{5,12})(\.[a-zA-Z]{3})?[\s\S]*/i;
+              var imgurLink = completeComments.replace(imgurRegex, 'https://i.imgur.com$2$3.jpg');
+
+              var youtubeRegex = /[\s\S]*?(?:https?:\/\/)?(?:www\.)?youtu\.?be(?:\.com)?\/.*?(?:watch|embed)?(?:.*?v=|v\/|\/)([\w\-_]{7,12})(?:[\&\?\#].*?)*?(?:([\&\?\#]t=)?(([\dhms]+))?)[\s\S]*/i;
+              var youtubeLink = completeComments.replace(youtubeRegex, 'https://img.youtube.com/vi/$1/0.jpg');
+
+              if (imgurLink != completeComments) {
+                imageLink = imgurLink;
+              } else if (youtubeLink != completeComments) {
+                imageLink = youtubeLink;
+              }
+
+              if (imageLink != "") {
+                res.write(`<meta name="twitter:image" content="` + imageLink + `">
+              <meta property="og:image" content="`+ imageLink + `">`);
+              }
+
+            } else if (type == "member") {
+              var memberText = ds(rows[0].name) + ` @` + ds(rows[0].pagingid) + ` member.cash profile `;
+              var memberDescription = ds(rows[0].profile);
+
+              res.write(`<meta name="description" content="` + memberText + ` ` + memberDescription + ` ">
+            <meta name="twitter:card" content="summary_large_image">
+            <meta name="twitter:title" content="` + memberText + `">
+            <meta name="twitter:description" content="`+ memberDescription + `">
+            <meta name="og:title" content="` + memberText + `">
+            <meta name="og:description" content="`+ memberDescription + `"></meta>`);
+            } else if (type == "topic") {
+              var memberText = `member.cash topic: ` + ds(rows[0].topic);
+              res.write(`<meta name="description" content="` + memberText + ` ">
+            <meta name="twitter:card" content="summary_large_image">
+            <meta name="twitter:title" content="` + memberText + `">
+            <meta name="twitter:description" content="`+ memberText + `">
+            <meta name="og:title" content="` + memberText + `">
+            <meta name="og:description" content="`+ memberText + `"></meta>`);
+            }
+          }
+
+          res.write(indexparts[1]);
+          if (type == "post") {
+            if (rows.length > 0) {
+              for (var i = 0; i < rows.length; i++) {
+                if (i > 0) {
+                  res.write('<p><a href="/p/' + sanitizeAlphanumeric(rows[i].txid.substr(0, 10)) + '">' + ds(rows[i].message) + '</a> <a href="/m/' + encodeURI(rows[i].pagingid) + '">@' + ds(rows[i].pagingid) + '</a></p>');
+                } else {
+                  res.write('<p>' + ds(rows[i].message) + ' <a href="/m/' + encodeURI(rows[i].pagingid) + '">@' + ds(rows[i].pagingid) + '</a></p>');
+                  if (imageLink != "") {
+                    res.write(`<img src="` + imageLink + `">`);
+                  }
+                  res.write('<p><a href="/t/' + encodeURIComponent(rows[i].topic) + '">' + ds(rows[i].topic) + '</a></p>');
+                }
+              }
+            }
+          } else if (type == "topic" || type == "member") {
+            if (rows.length > 0) {
+              if (type == "member") {
+                res.write('<p>' + ds(rows[0].name) + '</p>');
+                res.write('<p>@' + ds(rows[0].pagingid) + '</p>');
+                res.write('<p>' + ds(rows[0].profile) + '</p>');
+              } else if (type == "topic") {
+                res.write('<p><a href="/t/' + encodeURIComponent(rows[0].topic) + '">' + ds(rows[0].topic) + '</a></p>');
+              }
+              for (var i = 0; i < rows.length; i++) {
+                res.write('<p><a href="/p/' + sanitizeAlphanumeric(rows[i].txid.substr(0, 10)) + '">' + ds(rows[i].message) + '</a> <a href="/t/' + encodeURIComponent(rows[i].topic) + '">' + ds(rows[i].topic) + '</a> <a href="/m/' + encodeURI(rows[i].pagingid) + '">@' + ds(rows[i].pagingid) + '</a></p>');
+              }
+            }
+          }
+
+          res.end(indexparts[2]);
+          return;
+        } catch (err) {
+          console.log(err);
+        }
+      }
+
+      try {
+        res.end(`{"error":"` + sanitizeAlphanumeric(err) + `"}`);
+      } catch (err) {
+        console.log(err);
+      }
+
+    }
+    /*
+        function returnTopic(err, rows, res, dbloc) {
+          //This function must close the db connection and end the result
+          try {
+            if (dbloc.end) dbloc.end();
+            if (dbloc.close) dbloc.close();
+          } catch (e2) {
+            console.log(e2);
+          }
+    
+          if (err) {
+            console.log(err);
+          } else {
+    
+            //
+            try {
+              res.write(indexparts[0]);
+              if (rows.length > 0) {
+                res.write("<!--Extra Metadata-->");
+                res.write(`<base href="../">`);
+              }
+              res.write(indexparts[1]);
+              if (rows.length > 0) {
+                res.write('<p><a href="/t/' + encodeURIComponent(rows[0].topic) + '">' + ds(rows[0].topic) + '</a></p>');
+                for (var i = 0; i < rows.length; i++) {
+                  res.write('<p><a href="/p/' + sanitizeAlphanumeric(rows[i].txid.substr(0, 10)) + '">' + ds(rows[i].message) + '</a> <a href="/m/' + encodeURI(rows[i].pagingid) + '">@' + ds(rows[i].pagingid) + '</a></p>');
+                }
+              }
+              res.end(indexparts[2]);
+              return;
+            } catch (err) {
+              console.log(err);
+            }
+          }
+    
+          try {
+            res.end(`{"error":"` + sanitizeAlphanumeric(err) + `"}`);
+          } catch (err) {
+            console.log(err);
+          }
+    
+        }
+    */
     function returnQuery(err, rows, res, dbloc, msc, query) {
       //This function must close the db connection and end the result
       try {
@@ -885,6 +1114,22 @@ var run = async function () {
   function sanitizeAlphanumeric(input) {
     if (!isString(input)) { return ""; }
     return input.replace(/[^A-Za-z0-9]/g, '');
+  }
+
+  function ds(input) {
+    //if (input === undefined) { return ""; };
+    try {
+      //If this error out 'input.replace not a number' probably input is not a string type
+      input = input.replace(/&/g, '&amp;');
+      input = input.replace(/</g, '&lt;');
+      input = input.replace(/>/g, '&gt;');
+      input = input.replace(/"/g, '&quot;');
+      input = input.replace(/'/g, '&#x27;');
+    } catch (e) {
+      //Anything funky goes on, we'll return safe empty string
+      return "";
+    }
+    return input;
   }
 
   function sleep(ms) {

@@ -25,8 +25,8 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 	//Alphanumeric 
 	var queryData = url.parse(req.url, true).query;
 	var action = (queryData.action || 'posts').replace(/[^a-zA-Z0-9]+/g, "");
-	var address = (queryData.address || '').replace(/[^a-zA-Z0-9]+/g, "");
-	var qaddress = (queryData.qaddress || '').replace(/[^a-zA-Z0-9]+/g, "");
+	var address = (queryData.address || '').replace(/[^a-zA-Z0-9]+/g, ""); //address is the address of the current user
+	var qaddress = (queryData.qaddress || '').replace(/[^a-zA-Z0-9]+/g, ""); //qaddress is the address of a target user of the query
 	var txid = (queryData.txid || '').replace(/[^a-zA-Z0-9]+/g, "");
 	var type = (queryData.type || 'top').replace(/[^a-zA-Z0-9]+/g, "");
 	var order = (queryData.order || 'hot').replace(/[^a-zA-Z0-9]+/g, "");
@@ -175,6 +175,8 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 
 		if (order == 'topd') {
 			firstseen = " AND messages.firstseen>" + sqltimestamp + "-(60*60*24*1) ";
+		} else if (order == 'top48') {
+			firstseen = " AND messages.firstseen>" + sqltimestamp + "-(60*60*24*2) ";
 		} else if (order == 'topw') {
 			firstseen = " AND messages.firstseen>" + sqltimestamp + "-(60*60*24*7) ";
 		} else if (order == 'topm') {
