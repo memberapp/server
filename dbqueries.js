@@ -336,7 +336,9 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			l.repliesdirect as lreplies,
 			l.repostcount as lrepostcount,
 			llikesdislikes.txid as llikedtxid, 
-			llikesdislikes.type as llikeordislike
+			llikesdislikes.type as llikeordislike,
+			lrepostid.txid as lrepostidtxid,
+			rrepostid.txid as rrepostidtxid
 			FROM notifications
 			LEFT JOIN messages ON messages.txid=notifications.txid
 			LEFT JOIN likesdislikes ON likesdislikes.txid=notifications.txid
@@ -347,8 +349,10 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			LEFT JOIN names ON names.address=notifications.origin
 			LEFT JOIN names as n2 ON n2.address=notifications.address
 			LEFT JOIN messages as r ON notifications.txid=r.txid
+			LEFT JOIN messages as rrepostid ON r.canonicalid = rrepostid.repost AND rrepostid.address='` + address + `' 
 			LEFT JOIN likesdislikes as rlikesdislikes ON rlikesdislikes.address='` + address + `' AND rlikesdislikes.retxid=r.txid
 			LEFT JOIN messages as l ON likesdislikes.retxid=l.txid
+			LEFT JOIN messages as lrepostid ON l.canonicalid = lrepostid.repost AND lrepostid.address='` + address + `'
 			LEFT JOIN likesdislikes as llikesdislikes ON llikesdislikes.address='` + address + `' AND llikesdislikes.retxid=l.txid
 			LEFT JOIN blocks ON notifications.origin=blocks.blocks AND blocks.address='` + address + `' 
 			WHERE blocks IS NULL
@@ -608,17 +612,27 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		sql = "SELECT names.*, userratings.rating as rating from names LEFT JOIN userratings ON names.address = userratings.rates AND userratings.address='" + address + "' where pagingid like " + escapeFunction(usersearchHOSTILE) + " or name like " + escapeFunction(usersearchHOSTILE) + " LIMIT 10";
 	}
 
+	if (action == "resolvepagingid") {
+		var searchHOSTILE = queryData.pagingid.toLowerCase() || '';
+		//Searching the pagingid rather than the name for case insensitive search
+		sql = "SELECT names.*, userratings.rating as rating from names LEFT JOIN userratings ON names.address = userratings.rates AND userratings.address='" + address + "' where pagingid = " + escapeFunction(searchHOSTILE) + " ORDER BY nametime ASC LIMIT 10";
+	}
+
 	if (action == "messages") {
-		sql = `SELECT *,
-				names.name as name,
+		sql = `SELECT privatemessages.*,
+				sendername.name as name,
+				sendername.publickey as publickey,
 				privatemessages.address as senderaddress, 
-				userratings.rating as rating 
+				userratings.rating as rating, 
+				recipients.name as recipient,
+				recipients.publickey as recipientpublickey
 				from privatemessages
-			    LEFT JOIN names ON privatemessages.address=names.address
+				LEFT JOIN names as sendername ON privatemessages.address=sendername.address
+				LEFT JOIN names as recipients ON privatemessages.toaddress=recipients.address
 				LEFT JOIN userratings ON userratings.address='` + address + `' AND privatemessages.address=userratings.rates 
-					WHERE privatemessages.toaddress='` + address + `' 
+					WHERE privatemessages.toaddress='` + address + `' or privatemessages.address='` + address + `' 
 					ORDER BY privatemessages.firstseen 
-					DESC `;
+					DESC LIMIT 100`;
 	}
 
 	return sql;

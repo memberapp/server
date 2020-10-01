@@ -20,6 +20,8 @@ var sqlforaction = {};
 var geohashlib = require('./geohash.js');
 var bitcoinJs = require('bitcoinjs-lib');
 var bs58check = require('bs58check');
+const request = require('request');
+const sharp = require('sharp');
 
 const MAXADDRESS = 35;
 const MAXTXID = 64;
@@ -64,10 +66,9 @@ function processOPDATA(hexdata, maxterms) {
   return opdata;
 }
 
-sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
+sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction, blocknumber, profilepicpath, insertignore, querymemoformissingpics, debug) {
 
-  var insertignore = "INSERT IGNORE ";
-  if (issqlite) { insertignore = "INSERT OR IGNORE "; }
+
   var txid = tx.getId();
 
   for (var i = 0; i < tx.outs.length; i++) {
@@ -75,14 +76,16 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
     var hex = tx.outs[i].script.toString('hex');
     var sql = [];
 
-    //write the raw trx to db for future use
-    if (hex.startsWith("6a02") || hex.startsWith("6a04534c500001010747454e45534953")) {
-      if (hex.length > 0 && hex.length < 51200) {
-        sql.push(insertignore + " into transactions VALUES (" + escapeFunction(txid) + "," + escapeFunction(hex.substr(0, 8)) + "," + escapeFunction(hex) + "," + escapeFunction(time) + ");");
-      }
+    var onConflictAddress = " ON DUPLICATE KEY UPDATE ";
+    if (issqlite) {
+      onConflictAddress = " ON CONFLICT(address) DO UPDATE SET ";
     }
 
     if (hex.startsWith("6a04534c500001010747454e45534953")) {
+      if(debug){
+        console.log('oc:' +"6a04534c" +':txid:' + txid);
+      }
+
       //SLP creation transaction
       var messages = processOPDATA(hex.substring(12), 20);
       var capped = "(UNCAPPED) ";
@@ -104,7 +107,9 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
     if (hex.startsWith("6a026d") || hex.startsWith("6a027d") || hex.startsWith("6a028d") || hex.startsWith("6a029d")) {
       var truncatehex = hex.substring(4);
       var operationCode = truncatehex.substring(0, 4);
-      //console.log('oc:' +operationCode +'txid:' + txid);
+      if(debug){
+        console.log('oc:' +operationCode +':txid:' + txid);
+      }
       var messages = processOPDATA(truncatehex.substring(4));
 
       switch (operationCode) {
@@ -121,21 +126,21 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           //Strip out special characters from paging ids
           var pagename = name.replace(/\n/g, "");
           pagename = pagename.replace(/ /g, "");
-          pagename = pagename.replace(/[.,\/#!$%\^&\*;:{}=\-`~()\?]/g, "");
+          pagename = pagename.replace(/[.,\/#!$%\^&\*;:{}=\-`~()'"@<>\ \n?]/g, "");
           pagename = pagename.toLowerCase();
 
-          //After Sept 1st 2019, names cannot be changed.
+
           if (time < 1567299601) {
-            if (issqlite) {
-              sql.push("insert into names VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(name) + "," + escapeFunction(txid) + ",'',''," + escapeFunction(pagename) + "," + escapeFunction(publicKey) + ") ON CONFLICT(address) DO UPDATE SET name=" + escapeFunction(name) + ", nametxid=" + escapeFunction(txid) + ", pagingid=" + escapeFunction(pagename) + ", publickey=" + escapeFunction(publicKey) + ";");
-            } else {
-              sql.push("insert into names VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(name) + "," + escapeFunction(txid) + ",'',''," + escapeFunction(pagename) + "," + escapeFunction(publicKey) + ") ON DUPLICATE KEY UPDATE            name=" + escapeFunction(name) + ", nametxid=" + escapeFunction(txid) + ", pagingid=" + escapeFunction(pagename) + ", publickey=" + escapeFunction(publicKey) + ";");
-            }
+            sql.push("insert into names VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(name) + "," + escapeFunction(txid) + "," + escapeFunction(time) + ",'',''," + escapeFunction(pagename) + "," + escapeFunction(publicKey) + ",'',0,'',0) " + onConflictAddress + " name=" + escapeFunction(name) + ", nametxid=" + escapeFunction(txid) + ", nametime=" + escapeFunction(time) + ", pagingid=" + escapeFunction(pagename) + ", publickey=" + escapeFunction(publicKey) + ";");
             return sql;
           } else {
-            sql.push(insertignore + " into names VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(name) + "," + escapeFunction(txid) + ",'',''," + escapeFunction(pagename) + "," + escapeFunction(publicKey) + ") ;");
+            //After Sept 1st 2019, names cannot necessarily be changed.
+            sql.push(insertignore + " into names VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(name) + "," + escapeFunction(txid) + "," + escapeFunction(time) + ",'',''," + escapeFunction(pagename) + "," + escapeFunction(publicKey) + ",'',0,'',0) ;");
             //If profile is already set, but name is not need to update values because previous statement will have been ignored
-            sql.push("UPDATE names set name=" + escapeFunction(name) + ", nametxid=" + escapeFunction(txid) + ", pagingid=" + escapeFunction(pagename) + ", publickey=" + escapeFunction(publicKey) + " WHERE name='' AND address=" + escapeFunction(sentFrom) + ";");
+
+            //names cannot be changed if there are more than 3 ratings, not including follows or mutes
+            var ratingscount = "(SELECT count(*) FROM userratings where rates=" + escapeFunction(sentFrom) + " AND rating!=191 AND rating!=63)<3";
+            sql.push("UPDATE names set name=" + escapeFunction(name) + ", nametxid=" + escapeFunction(txid) + ", nametime=" + escapeFunction(time) + ", pagingid=" + escapeFunction(pagename) + ", publickey=" + escapeFunction(publicKey) + " WHERE (name='' OR " + ratingscount + ") AND address=" + escapeFunction(sentFrom) + ";");
             return sql;
           }
           break;
@@ -259,28 +264,38 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
             //Make sure reply has the same roottxid and topic as parent, sometimes this won't be available, there is a housekeeping operation to fill it in later if so
             sql.push("UPDATE messages SET (roottxid,topic) = (SELECT m.roottxid, m.topic FROM messages m WHERE txid=" + escapeFunction(retxid) + ") WHERE messages.txid=" + escapeFunction(txid) + ";");
 
-            var selectRootTXID = " (SELECT roottxid FROM messages WHERE txid=" + escapeFunction(retxid) + ") ";
+            //var selectRootTXID = " (SELECT roottxid FROM messages WHERE txid=" + escapeFunction(retxid) + ") ";
 
             //keep count of total number of replies, members in a thread, note, if roottxid is not available, these do not get updated properly
-            sql.push("UPDATE messages SET repliesroot = (SELECT COUNT(*)-1 FROM messages WHERE roottxid=" + selectRootTXID + "), repliesuniquemembers = (SELECT count(DISTINCT address) FROM messages WHERE roottxid=" + selectRootTXID + ") WHERE roottxid = " + selectRootTXID + ";");
+            //sql.push("UPDATE messages SET repliesroot = (SELECT COUNT(*)-1 FROM messages WHERE roottxid=" + selectRootTXID + "), repliesuniquemembers = (SELECT count(DISTINCT address) FROM messages WHERE roottxid=" + selectRootTXID + ") WHERE roottxid = " + selectRootTXID + ";");
 
             //increase number of direct replies for parent message, this should be pretty fast
-            sql.push("UPDATE messages SET repliesdirect = (SELECT COUNT(*) FROM messages WHERE retxid=" + escapeFunction(retxid) + ")  WHERE messages.txid = " + escapeFunction(retxid) + ";");
+            //sql.push("UPDATE messages SET repliesdirect = (SELECT COUNT(*) FROM messages WHERE retxid=" + escapeFunction(retxid) + ")  WHERE messages.txid = " + escapeFunction(retxid) + ";");
 
           } else {
             //This may be a bit faster for mysql
             sql.push("UPDATE messages JOIN messages parent ON messages.retxid=parent.txid SET messages.roottxid = parent.roottxid, messages.topic = parent.topic WHERE messages.roottxid = '' AND messages.txid=" + escapeFunction(txid) + ";");
 
             //keep count of total number of replies in a thread
-            sql.push("UPDATE messages AS dest,(SELECT roottxid, COUNT(*)-1 as count FROM messages WHERE roottxid=(SELECT roottxid FROM messages WHERE txid=" + escapeFunction(retxid) + ") GROUP BY roottxid) AS src SET dest.repliesroot = src.count WHERE dest.txid = src.roottxid;");
+            //sql.push("UPDATE messages AS dest,(SELECT roottxid, COUNT(*)-1 as count FROM messages WHERE roottxid=(SELECT roottxid FROM messages WHERE txid=" + escapeFunction(retxid) + ") GROUP BY roottxid) AS src SET dest.repliesroot = src.count WHERE dest.txid = src.roottxid;");
 
             //keep count of total number of members in a thread
-            sql.push("UPDATE messages AS dest,(SELECT roottxid, count(DISTINCT address) as count FROM messages WHERE roottxid=(SELECT roottxid FROM messages WHERE txid=" + escapeFunction(retxid) + ") GROUP BY roottxid) AS src SET dest.repliesuniquemembers = src.count WHERE dest.txid =src.roottxid;");
+            //sql.push("UPDATE messages AS dest,(SELECT roottxid, count(DISTINCT address) as count FROM messages WHERE roottxid=(SELECT roottxid FROM messages WHERE txid=" + escapeFunction(retxid) + ") GROUP BY roottxid) AS src SET dest.repliesuniquemembers = src.count WHERE dest.txid =src.roottxid;");
 
             //increase number of direct replies for parent message, this should be pretty fast
-            sql.push("UPDATE messages AS dest,(SELECT retxid, COUNT(*) as count FROM messages WHERE retxid=" + escapeFunction(retxid) + " GROUP BY retxid) AS src SET dest.repliesdirect = src.count WHERE dest.txid = src.retxid;");
+            //sql.push("UPDATE messages AS dest,(SELECT retxid, COUNT(*) as count FROM messages WHERE retxid=" + escapeFunction(retxid) + " GROUP BY retxid) AS src SET dest.repliesdirect = src.count WHERE dest.txid = src.retxid;");
 
           }
+
+          var selectRootTXID = " (SELECT * FROM (SELECT roottxid FROM messages WHERE txid=" + escapeFunction(retxid) + ") as roottxid) ";
+
+          //keep count of total number of replies, don't count replies to self. members in a thread, note, if roottxid is not available, these do not get updated properly
+          //note superfluous select * necessary for mysql
+          sql.push("UPDATE messages SET repliesroot = (SELECT * FROM (SELECT COUNT(*)-1 FROM messages LEFT JOIN messages as messages2 on messages2.txid = messages.retxid WHERE messages2.address!=messages.address and messages.roottxid=" + selectRootTXID + ") as count), repliesuniquemembers = (SELECT * FROM (SELECT count(DISTINCT address) FROM messages WHERE roottxid=" + selectRootTXID + ") as count) WHERE roottxid = " + selectRootTXID + ";");
+
+          //increase number of direct replies for parent message. don't count replies to self. 
+          //note superfluous select * necessary for mysql
+          sql.push("UPDATE messages SET repliesdirect = (SELECT * FROM (SELECT COUNT(*) FROM messages LEFT JOIN messages as messages2 on messages2.txid = messages.retxid WHERE messages.retxid=" + escapeFunction(retxid) + " and messages2.address!=messages.address) as count)  WHERE messages.txid = " + escapeFunction(retxid) + ";");
 
           //Add page notifications - this should happen before reply notification in case a member is both replied to and paged in the same reply 
           sql = sql.concat(getPageNotificationSQL(decode, txid, sentFrom, time, escapeFunction, insertignore));
@@ -343,16 +358,50 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           break;
         case "6d05": //Set profile text 0x6d05 	message(77)
         case "8d05":
+        case "6d0a": //Set profile picture 	0x6d10 	url(217)
           var profiletext = fromHex(messages[0]);
           profiletext = profiletext.substr(0, MAXMESSAGE);
           var publicKey = getFirstPublicKeyFromTX(tx.ins[0]);
-
           var sentFrom = getFirstSendingAddressFromTX(tx.ins[0]);
-          if (issqlite) {
-            sql.push("insert into names VALUES (" + escapeFunction(sentFrom) + ",'',''," + escapeFunction(profiletext) + "," + escapeFunction(txid) + ",''," + escapeFunction(publicKey) + ") ON CONFLICT(address) DO UPDATE SET profile=" + escapeFunction(profiletext) + ", protxid=" + escapeFunction(txid) + ";");
-          } else {
-            sql.push("insert into names VALUES (" + escapeFunction(sentFrom) + ",'',''," + escapeFunction(profiletext) + "," + escapeFunction(txid) + ",''," + escapeFunction(publicKey) + ") ON DUPLICATE KEY UPDATE profile=" + escapeFunction(profiletext) + ", protxid=" + escapeFunction(txid) + ";");
+
+          if (operationCode == "8d06") {
+            sql.push("insert into names VALUES (" + escapeFunction(sentFrom) + ",'','',0," + escapeFunction(profiletext) + "," + escapeFunction(txid) + ",''," + escapeFunction(publicKey) + ",'',0,'',0) " + onConflictAddress + " profile=" + escapeFunction(profiletext) + ", protxid=" + escapeFunction(txid) + ";");
+          } else if (operationCode == "6d0a") {
+            var tx20 = txid.substr(0, 20);
+            sql.push("insert into names VALUES (" + escapeFunction(sentFrom) + ",'','',0,'','',''," + escapeFunction(publicKey) + "," + escapeFunction(profiletext) + "," + escapeFunction(time) + "," + escapeFunction(tx20) + ",0) " + onConflictAddress + " picurl=" + escapeFunction(profiletext) + ", pictime=" + escapeFunction(time) + ", tx20=" + escapeFunction(tx20) + ";");
+            //fetch image from url
+            console.log(profiletext);
+            var imgurRegex = /(?:https?:\/\/)?(\w+\.)?imgur\.com(\/|\/a\/|\/gallery\/)(?!gallery)([\w\-_]{5,12})(\.[a-zA-Z]{3})*/i;
+            var imgurLink = profiletext.replace(imgurRegex, 'https://i.imgur.com$2$3.jpg');
+            console.log(imgurLink);
+            if (imgurLink != profiletext || imgurLink.toLowerCase().startsWith('https://i.imgur.com')) {
+              try {
+                request({ url: imgurLink, encoding: null }, function (error, response, body) {
+                  //console.log(response.statusCode+" "+body.length);
+                  //console.log('https://memo.cash/img/profilepics/' + sentFrom + '-640x640.jpg');
+                  try {
+                    if (response.statusCode == 302 || body.length < 1000) {
+                      if(querymemoformissingpics){
+                        request({ url: 'https://memo.cash/img/profilepics/' + sentFrom + '-640x640.jpg', encoding: null }, function (error, response, body) {
+                          resizeImage(profilepicpath + '/' + sentFrom + '.640x640.jpg', body);
+                        });
+                        request({ url: 'https://memo.cash/img/profilepics/' + sentFrom + '-640x640.png', encoding: null }, function (error, response, body) {
+                          resizeImage(profilepicpath + '/' + sentFrom + '.640x640.jpg', body);
+                        });
+                      }
+                    } else {
+                      resizeImage(profilepicpath + '/' + sentFrom + '.640x640.jpg', body);
+                    }
+                  } catch (err) {
+                    console.log(err);
+                  }
+                });
+              } catch (err) {
+                console.log(err);
+              }
+            }
           }
+
           return sql;
           break;
         case "6d06": //Follow user 	0x6d06 	address(35)
@@ -395,8 +444,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           sql.push("DELETE FROM userratings WHERE address=" + escapeFunction(sentFrom) + " AND rates=" + escapeFunction(followAddress) + " AND rating='191';");
           return sql;
           break;
-        case "6d0a": //Set profile picture 	0x6d10 	imghash(16), url(61)
-          break;
+
 
         case "6d0d": //Topic follow 	0x6d0d 	topic_name(variable) 	Implemented
           var decode = fromHex(messages[0]);
@@ -474,7 +522,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
             sql.push(insertignore + " into notifications VALUES(" + escapeFunction(txid) + ",'rating'," + escapeFunction(userAddress) + "," + escapeFunction(sentFrom) + "," + escapeFunction(time) + ");");
 
             //don't make a new post if there is no comment
-            if (note != "" && note != "follows") {
+            if (note != "" && note.toLowerCase().trim() != "follows") {
               let concat = `CONCAT(
               "@",
               COALESCE((SELECT pagingid FROM names WHERE address = ` + escapeFunction(sentFrom) + `),` + escapeFunction(sentFrom) + `),
@@ -572,6 +620,8 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
           var messagetext = messages[0];
           messagetext = messagetext.substr(0, MAXHEXMESSAGE);
           var sentFrom = getFirstSendingAddressFromTX(tx.ins[0]);
+          var publicKey = getFirstPublicKeyFromTX(tx.ins[0]);
+
           try {
             var tipto = getAddressFromTXOUT(tx.outs[i + 1]);
             var amount = getAmountFromTXOUT(tx.outs[i + 1]);
@@ -580,6 +630,9 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction) {
             //console.log("No Tip: ");
             //Nothing to do here
           }
+
+          //update public key if it hasn't been already recorded
+          sql.push("insert into names VALUES (" + escapeFunction(sentFrom) + ",'','',0,'','',''," + escapeFunction(publicKey) + ",'',0,'',0) " + onConflictAddress + " publickey=" + escapeFunction(publicKey) + ";");
 
           return sql;
           break;
@@ -626,7 +679,7 @@ function getPageNotificationSQL(decode, txid, sentFrom, time, escapeFunction, in
 
   try {
     decode = decode.replace(/\n/g, " ");
-    decode = decode.replace(/[.,\/#!$%\^&\*;:{}=\-`~()\?]/g, " ");
+    decode = decode.replace(/[.,\/#!$%\^&\*;:{}=\-`~()'"@<>\?]/g, " ");
     var pages = decode.split(" ");
     for (var i = 0; i < pages.length; i++) {
       if (pages[i].startsWith("@") && pages[i].length > 1) {
@@ -674,6 +727,16 @@ function fromHex(hex) {
     return ("");
   }
   return str;
+}
+
+function resizeImage(imagepath, body) {
+
+  try {
+    sharp(body).resize(640, 640).toFile(imagepath, (err, info) => { });
+    sharp(body).resize(128, 128).toFile(imagepath, (err, info) => { });
+  } catch (err) {
+    console.log(err);
+  }
 }
 
 module.exports = sqlforaction;

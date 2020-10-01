@@ -57,6 +57,11 @@ var run = async function () {
   var AccessControlAllowOrigin = config.AccessControlAllowOrigin;
   var pathtoindex = config.pathtoindex;
   var bchdcertpem = config.bchdcertpem;
+  var profilepicpath = config.profilepicpath;
+  var querymemoformissingpics = config.querymemoformissingpics;
+  var debug = config.debug;
+  var allowpragmajournalmode = config.allowpragmajournalmode;
+  var batchsqlonsynccount = config.batchsqlonsynccount;
 
   //Conditionally included libs
 
@@ -108,11 +113,12 @@ var run = async function () {
       if (usesqlite) {
         var timestampSQL = "strftime('%s', 'now')";
         var escapeFunction = function (s) { s = s + ""; s = s.replace(/'/g, "''"); return "'" + s + "'"; }
+        var insertignore = "INSERT OR IGNORE ";
       } else {
         var timestampSQL = "UNIX_TIMESTAMP()";
-        var escapeFunction = mysql.escape;;
+        var escapeFunction = mysql.escape;
+        var insertignore = "INSERT IGNORE ";
       }
-
 
       //Recreate topics table  - null topic was returning null timestamp, so added a clause to address this
       //Need the null topic to return to allow moderator functions on sitewide bases
@@ -208,7 +214,7 @@ var run = async function () {
       currentBlock = overrideStartBlock;
     }
 
-    if (currentBlock < 600000) {
+    if (currentBlock < 600000 && allowpragmajournalmode) {
       //MEMORY — the rollback journal is kept in RAM and doesn’t use the disk subsystem. 
       //Such mode provides more significant performance increase when working with log. 
       //However, in case of any failures within a transaction, data in the DB will be 
@@ -216,7 +222,33 @@ var run = async function () {
       //Use only if there are a lot more blocks to process
       await dbbc.run("PRAGMA JOURNAL_MODE = MEMORY");
     }
-
+    /*
+        //if (rebuildFromDBTransactions) {
+        //run emptying commands
+        //get earliest and latest time stamps/blocks
+          var result = await dbbc.all("SELECT * FROM transactions WHERE action='6a026d0a';");
+          const util = require('util')
+          const request = require("request");
+          const requestPromise = util.promisify(request);
+    
+          for(var i=0;i<476;i++){
+            try{
+              var txiddata=await requestPromise("https://rest.bitcoin.com/v2/rawtransactions/getrawtransaction/"+result[i].txid);
+              var tx = bitcoinJs.Transaction.fromHex(txiddata.body.replace('"',''));
+              var sql = getSQLForTRX(tx, result[i].time, result[i].blockno);
+              await putMultipleSQLStatementsInSQLite(sql, dbbc);
+              await sleep(5000);
+              console.log(i+" "+result.length);
+            }catch(err){
+              console.log(err);
+              if(Math.random()>0.1){
+                await sleep(1000);
+                i--;
+              }
+            }
+          }
+        //}
+    */
 
     lastBlockSuccessfullyProcessed = currentBlock - 1;
     fetchAndProcessBlocksIntoDB();
@@ -237,7 +269,17 @@ var run = async function () {
     for (var i = 0; i < mempoolSQL.length; i++) {
       if (mempoolSQL[i] == "") continue;
       try {
+        var newTime = new Date().getTime();
         await dbmem.run(mempoolSQL[i]);
+        if (debug) {
+          var duration = new Date().getTime() - newTime;
+          if (duration > 100) {
+            var logquery = "insert into zsqlqueries values (" + escapeFunction(mempoolSQL[i]) + "," + duration + ");"
+            await dbmem.run(logquery);
+            console.log(mempoolSQL[i]);
+            console.log("Query Time (ms):" + duration);
+          }
+        }
         //sqlToRun.push(dbbc.run(sql[i]));
       } catch (e) {
         console.error(e);
@@ -338,10 +380,10 @@ var run = async function () {
     }
     console.log("Processing Block Into SQL:" + currentBlock);
     //console.log("block hash:" + ret.result);
-    rpc.getBlock(ret.result, false, processBlockIntoDB);
+    rpc.getBlock(ret.result, false, function (err, ret) { processBlockIntoDB(err, ret, currentBlock) });
   }
 
-  function processBlockIntoDB(err, ret) {
+  function processBlockIntoDB(err, ret, blocknumber) {
     if (err) {
       console.log(err);
       if (err.code == -1) {//Pruned block?
@@ -350,17 +392,17 @@ var run = async function () {
       console.log("Wait " + secondsToWaitBetweenProcessingBlocks + " seconds");
       return setTimeout(fetchAndProcessBlocksIntoDB, secondsToWaitBetweenErrorOnBlocks * 1000);
     }
-    takeBlockHexTransactionsAndPutThemInTheDB(ret.result);
+    takeBlockHexTransactionsAndPutThemInTheDB(ret.result, blocknumber);
   }
 
-  function takeBlockHexTransactionsAndPutThemInTheDB(hex) {
+  function takeBlockHexTransactionsAndPutThemInTheDB(hex, blocknumber) {
     var block = bitcoinJs.Block.fromHex(hex);
     //console.log(block.getId() + "\n");
     var transactions = block.transactions;
     lastblocktimestamp = block.timestamp;
     for (var i = 1; i < transactions.length; i++) {
       try {
-        var dbresults = getSQLForTRX(transactions[i], block.timestamp);
+        var dbresults = getSQLForTRX(transactions[i], block.timestamp, blocknumber);
         globalsql = globalsql.concat(dbresults);
       } catch (error) {
         //Skip if any problem
@@ -371,7 +413,7 @@ var run = async function () {
     writeToSQL(globalsql);
   }
 
-  function getSQLForTRX(tx, time) {
+  function getSQLForTRX(tx, time, blocknumber) {
     try {
       if (tx === undefined) {
         return [];
@@ -380,29 +422,46 @@ var run = async function () {
       //This assumes maximum of 1 memo action per trx
       var txid = tx.getId();
 
+      var sql = [];
+
+      //write the raw trx to db for future use if the tx exists in a block
+      if (blocknumber > 0) {
+        for (var i = 0; i < tx.outs.length; i++) {
+          var hex = tx.outs[i].script.toString('hex');
+          if (hex.startsWith("6a02") || hex.startsWith("6a04534c500001010747454e45534953")) {
+            var txhex = tx.toHex();
+            if (txhex.length > 0 && txhex.length < 51200) {
+              if(!hex.substr(0, 8).startsWith("6a026d3")){ //Ignore token actions
+                sql.push(insertignore + " into transactions VALUES (" + escapeFunction(txid) + "," + escapeFunction(hex.substr(0, 8)) + "," + escapeFunction(txhex) + "," + escapeFunction(time) + "," + escapeFunction(blocknumber) + ");");
+              }
+            }
+          }
+        }
+      }
+
       //Don't examine all transactions again that have already been examined for memo trxs
       if (mempooltxidsAlreadyProcessed.indexOf(txid) !== -1) {
         //console.log("Skipping - this tx already processed from the mempool.");
-        return [];
+        return sql;
       }
 
       //Don't process memo transactions that have already been processed
       if (memotxidsalreadyprocessed.indexOf(txid) !== -1) {
         console.log("Skipping - this tx already processed:" + txid);
-        return [];
+        return sql;
       }
 
-      return sqlforaction.getSQLForAction(tx, time, usesqlite, escapeFunction);
+      return sql.concat(sqlforaction.getSQLForAction(tx, time, usesqlite, escapeFunction, blocknumber, profilepicpath, insertignore, querymemoformissingpics, debug));
     } catch (e2) {
       console.log(e2);
-      return []
+      return [];
     }
   }
 
   function getHouseKeepingOperation() {
-    //These are expensive, so max of once per 2 minutes
+    //These are expensive, so max of once per 60 minutes
     var currentTime = new Date().getTime();
-    if (currentTime - lastExpensiveSQLHousekeepingOperation > 60 * 2) {
+    if (currentTime - lastExpensiveSQLHousekeepingOperation > 60 * 60 * 1000) {
       console.log("Adding SQL Housekeeping operation");
       lastExpensiveSQLHousekeepingOperation = currentTime;
       return expensiveHousekeepingSQLOperations[Math.floor(Math.random() * expensiveHousekeepingSQLOperations.length)];
@@ -415,7 +474,7 @@ var run = async function () {
     console.log("SQL processing queue:" + sql.length);
     //console.log("Processed:" + memotxidsalreadyprocessed.length);
     //console.log("Processed:" + mempooltxidsAlreadyProcessed.length);
-    if (sql.length < 1000 && !mempoolprocessingstarted) {
+    if (sql.length < batchsqlonsynccount && !mempoolprocessingstarted) {
       //on initial sync, we'll batch sql
       //console.log("Not enough transactions to process");
       currentBlock++;
@@ -675,6 +734,14 @@ var run = async function () {
     try {
       indexfile = fs.readFileSync(pathtoindex).toString('utf-8');
       indexparts = indexfile.split("<!--INSERTMETADATA-->").join('<!--INSERTCONTENT-->').split("<!--INSERTCONTENT-->");
+      //override header to remove title/description
+      indexparts[0] =  `<!doctype html>
+      <html lang="en">
+      <head>
+          <meta charset="utf-8">
+          <meta http-equiv="x-ua-compatible" content="ie=edge">
+          `;
+
     } catch (err) {
       console.log("Failed to load index.html file " + err);
     }
@@ -733,7 +800,6 @@ var run = async function () {
           rpc.sendRawTransaction(transaction, function (err, ret) { sendTransaction(err, ret, res, transaction); });
           return;
         } else if (req.url.startsWith("/v2/member.js?action=")) {
-          res.writeHead(200, { "Access-Control-Allow-Origin": AccessControlAllowOrigin, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-cache' });
           try {
 
             //Run query
@@ -786,7 +852,7 @@ var run = async function () {
         } else if (req.url.startsWith("/m/")) {
           console.log(req.url);
           res.writeHead(200, { "Access-Control-Allow-Origin": AccessControlAllowOrigin, 'Content-Type': 'text/html; charset=utf-8' });
-          var pagingIDHOSTILE = req.url.substr(3, 220).toLowerCase().trim().replace('@','');
+          var pagingIDHOSTILE = req.url.substr(3, 220).toLowerCase().trim().replace('@', '');
           if (pagingIDHOSTILE.length < 1) {
             res.end(`{"error":"Not Supported"}`);
             return;
@@ -854,16 +920,17 @@ var run = async function () {
           res.write("<!--Extra Metadata-->");
           res.write(`<base href="../">`);
 
-          var imageLink = "";
+          var imageLink =  `img/logo.png`;
           if (rows.length > 0) {
             if (type == "post") {
 
-              res.write(`<meta name="description" content="` + ds(rows[0].message) + `">
-            <meta name="twitter:card" content="summary_large_image">
-            <meta name="twitter:title" content="` + ds(rows[0].message) + `">
-            <meta name="twitter:description" content="`+ ds(rows[0].message) + `">
-            <meta name="og:title" content="` + ds(rows[0].message) + `">
-            <meta name="og:description" content="`+ ds(rows[0].message) + `"></meta>`);
+              res.write(`<title>` + ds(rows[0].message) + `</title>
+              <meta name="description" content="` + ds(rows[0].message) + `">
+              <meta name="twitter:card" content="summary_large_image">
+              <meta name="twitter:title" content="` + ds(rows[0].message) + `">
+              <meta name="twitter:description" content="`+ ds(rows[0].message) + `">
+              <meta name="og:title" content="` + ds(rows[0].message) + `">
+              <meta name="og:description" content="`+ ds(rows[0].message) + `"></meta>`);
 
               //look for an imgur / youtube
               var completeComments = "";
@@ -883,29 +950,36 @@ var run = async function () {
                 imageLink = youtubeLink;
               }
 
-              if (imageLink != "") {
-                res.write(`<meta name="twitter:image" content="` + imageLink + `">
-              <meta property="og:image" content="`+ imageLink + `">`);
-              }
-
             } else if (type == "member") {
               var memberText = ds(rows[0].name) + ` @` + ds(rows[0].pagingid) + ` member.cash profile `;
               var memberDescription = ds(rows[0].profile);
 
-              res.write(`<meta name="description" content="` + memberText + ` ` + memberDescription + ` ">
-            <meta name="twitter:card" content="summary_large_image">
-            <meta name="twitter:title" content="` + memberText + `">
-            <meta name="twitter:description" content="`+ memberDescription + `">
-            <meta name="og:title" content="` + memberText + `">
-            <meta name="og:description" content="`+ memberDescription + `"></meta>`);
+              res.write(`<title>` + memberText + `</title>
+              <meta name="description" content="` + memberText + ` ` + memberDescription + ` ">
+              <meta name="twitter:card" content="summary_large_image">
+              <meta name="twitter:title" content="` + memberText + `">
+              <meta name="twitter:description" content="`+ memberDescription + `">
+              <meta property="og:title" content="` + memberText + `">
+              <meta property="og:description" content="`+ memberDescription + `">
+              <script>var headeraddress=`+ rows[0].address + `;</script> 
+              `);
+              imageLink = `https://member.cash/img/profilepics/`+ rows[0].address + `.640x640.jpg`;
+
             } else if (type == "topic") {
               var memberText = `member.cash topic: ` + ds(rows[0].topic);
-              res.write(`<meta name="description" content="` + memberText + ` ">
-            <meta name="twitter:card" content="summary_large_image">
-            <meta name="twitter:title" content="` + memberText + `">
-            <meta name="twitter:description" content="`+ memberText + `">
-            <meta name="og:title" content="` + memberText + `">
-            <meta name="og:description" content="`+ memberText + `"></meta>`);
+              res.write(`<title>` + memberText + `</title>
+              <meta name="description" content="` + memberText + ` ">
+              <meta name="twitter:card" content="summary_large_image">
+              <meta name="twitter:title" content="` + memberText + `">
+              <meta name="twitter:description" content="`+ memberText + `">
+              <meta property="og:title" content="` + memberText + `">
+              <meta property="og:description" content="`+ memberText + `">`);
+              imageLink = `img/logo.png`;
+            }
+
+            if (imageLink != "") {
+              res.write(`<meta name="twitter:image" content="` + imageLink + `">
+                <meta property="og:image" content="`+ imageLink + `">`);
             }
           }
 
@@ -917,9 +991,6 @@ var run = async function () {
                   res.write('<p><a href="/p/' + sanitizeAlphanumeric(rows[i].txid.substr(0, 10)) + '">' + ds(rows[i].message) + '</a> <a href="/m/' + encodeURI(rows[i].pagingid) + '">@' + ds(rows[i].pagingid) + '</a></p>');
                 } else {
                   res.write('<p>' + ds(rows[i].message) + ' <a href="/m/' + encodeURI(rows[i].pagingid) + '">@' + ds(rows[i].pagingid) + '</a></p>');
-                  if (imageLink != "") {
-                    res.write(`<img src="` + imageLink + `">`);
-                  }
                   res.write('<p><a href="/t/' + encodeURIComponent(rows[i].topic) + '">' + ds(rows[i].topic) + '</a></p>');
                 }
               }
@@ -938,7 +1009,7 @@ var run = async function () {
               }
             }
           }
-
+          res.write(`<img src="` + imageLink + `">`);
           res.end(indexparts[2]);
           return;
         } catch (err) {
@@ -953,50 +1024,11 @@ var run = async function () {
       }
 
     }
-    /*
-        function returnTopic(err, rows, res, dbloc) {
-          //This function must close the db connection and end the result
-          try {
-            if (dbloc.end) dbloc.end();
-            if (dbloc.close) dbloc.close();
-          } catch (e2) {
-            console.log(e2);
-          }
-    
-          if (err) {
-            console.log(err);
-          } else {
-    
-            //
-            try {
-              res.write(indexparts[0]);
-              if (rows.length > 0) {
-                res.write("<!--Extra Metadata-->");
-                res.write(`<base href="../">`);
-              }
-              res.write(indexparts[1]);
-              if (rows.length > 0) {
-                res.write('<p><a href="/t/' + encodeURIComponent(rows[0].topic) + '">' + ds(rows[0].topic) + '</a></p>');
-                for (var i = 0; i < rows.length; i++) {
-                  res.write('<p><a href="/p/' + sanitizeAlphanumeric(rows[i].txid.substr(0, 10)) + '">' + ds(rows[i].message) + '</a> <a href="/m/' + encodeURI(rows[i].pagingid) + '">@' + ds(rows[i].pagingid) + '</a></p>');
-                }
-              }
-              res.end(indexparts[2]);
-              return;
-            } catch (err) {
-              console.log(err);
-            }
-          }
-    
-          try {
-            res.end(`{"error":"` + sanitizeAlphanumeric(err) + `"}`);
-          } catch (err) {
-            console.log(err);
-          }
-    
-        }
-    */
+
     function returnQuery(err, rows, res, dbloc, msc, query) {
+
+
+      msc = Date.now() / 1000 - msc;
       //This function must close the db connection and end the result
       try {
         if (dbloc.end) dbloc.end();
@@ -1009,8 +1041,6 @@ var run = async function () {
         console.log(err);
       } else {
         try {
-          msc = Date.now() / 1000 - msc;
-
           //Removate moderated content
           //Unfortunately not possible to include this graph like request in SQL statement.
           //Workaround is to flag results in 'moderated' column and remove them here.
@@ -1043,7 +1073,18 @@ var run = async function () {
             rows[0].msc = msc;
             rows[0].query = query.replace(/\t/g, ' ').replace(/\n/g, ' ');
           }
+          res.writeHead(200, { "Access-Control-Allow-Origin": AccessControlAllowOrigin, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-cache' });
           res.end(JSON.stringify(rows));
+
+          if (debug & usesqlite) {
+            if (msc > 100) {
+              var logquery = "insert into zsqlqueries values (" + escapeFunction(query) + "," + msc + ");"
+              dbmem.run(logquery);
+              console.log(query);
+              console.log("Query Time (ms):" + msc);
+            }
+          }
+
           return;
         } catch (err) {
           console.log(err);
@@ -1051,6 +1092,7 @@ var run = async function () {
       }
 
       try {
+        res.writeHead(500);
         res.end(`{"error":"` + sanitizeAlphanumeric(err) + `"}`);
       } catch (err) {
         console.log(err);
