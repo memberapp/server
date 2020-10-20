@@ -64,6 +64,14 @@ config.allowpragmajournalmode = false;
 
 config.debug=false;
 
+//reparse actions from txs stored in database
+config.rebuildFromDBTransactions=false;
+//action types to reparse
+config.actionTypes=["6d06","8d06","6d07","8d07","6d16","6da6","6d17","6da7"]; //follows, mutes, unfollows, unmutes
+//config.actionTypes=["6d05","8d05"]; //profile text
+//milliseconds wait between each reparsing action - 1000 recommended for action '6d0a' - so as to throttle requests to imgur for profile images  
+config.rebuildPauseBetweenCalls=0;
+
 //if syncing from node on same computer, best to batch the sql commands 
 //can try setting this to zero if running out of memory on large blocks 
 config.batchsqlonsynccount=1000;
