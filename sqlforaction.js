@@ -200,8 +200,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction, blo
         if (operationCode == "6d0b" || operationCode == "6d0f") { //Repost memo 	
           repostid = messages[0].match(/[a-fA-F0-9]{2}/g).reverse().join('');
           repostid = repostid.substr(0, MAXTXID);
-          canonicalid = repostid;
-
+          
           decode = "";
           if (operationCode == "6d0b" && messages.length > 1) {
             decode = fromHex(messages[1]);
@@ -214,6 +213,9 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction, blo
             }
           }
 
+          if(!decode){
+            canonicalid = repostid;
+          }
         }
 
         var sentFrom = getFirstSendingAddressFromTX(tx.ins[0]);
