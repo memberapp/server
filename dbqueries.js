@@ -379,14 +379,39 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		sql = select + ` DISTINCT(messages.txid), messages.*, mods2.address as moderated,
 		blocks.trxid as blockstxid,`+
 		rpnameselection.replace(/rp/g,'') +
+		rpnameselection +
 		`rating,
 		messages.repliesdirect as replies,
 		likesdislikes.txid as likedtxid, 
-		likesdislikes.type as likeordislike  
+		likesdislikes.type as likeordislike,
+		reposts.address as rpaddress,
+		reposts.amount as rpamount,
+		reposts.dislikes as rpdislikes,
+		reposts.firstseen as rpfirstseen,
+		reposts.geohash as rpgeohash,
+		reposts.language as rplanguage,
+		reposts.lat as rplat,
+		reposts.likes as rplikes,
+		reposts.lon as rplon,
+		reposts.message as rpmessage,
+		reposts.repliestree as rprepliestree,
+		reposts.repliesuniquemembers as rprepliesuniquemembers,
+		reposts.repost as rprepost,
+		reposts.repostcount as rprepostcount,
+		reposts.retxid as rpretxid,
+		reposts.roottxid as rproottxid,
+		reposts.tips as rptips,
+		reposts.topic as rptopic,
+		reposts.txid as rptxid,
+		reposts.repliesdirect as rpreplies,
+		reposts.repliesroot as rprepliesroot,
+		reposts.repostcount as rprepostcount   
 		FROM messages as messages3
-		LEFT JOIN messages ON messages.roottxid=messages3.roottxid `
+		LEFT JOIN messages ON messages.roottxid=messages3.roottxid 
+		LEFT JOIN messages as reposts ON messages.repost = reposts.txid ` 
 			+ userratings
 			+ names
+			+ rpnames
 			+ likesanddislikes
 			+ modsthread
 			+ `LEFT JOIN blocks ON messages.address=blocks.blocks AND blocks.address='` + address + `' WHERE 1=1  
