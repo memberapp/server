@@ -67,7 +67,7 @@ function processOPDATA(hexdata, maxterms) {
   return opdata;
 }
 
-sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction, blocknumber, profilepicpath, insertignore, querymemoformissingpics, debug, downloadprofilepics, keepThreadNotificationsTime, keepNotificationsTime) {
+sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction, blocknumber, profilepicpath, insertignore, querymemoformissingpics, debug, downloadprofilepics, keepThreadNotificationsTime, keepNotificationsTime, onConflictAddress) {
 
 
   var txid = tx.getId();
@@ -76,11 +76,6 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction, blo
 
     var hex = tx.outs[i].script.toString('hex');
     var sql = [];
-
-    var onConflictAddress = " ON DUPLICATE KEY UPDATE ";
-    if (issqlite) {
-      onConflictAddress = " ON CONFLICT(address) DO UPDATE SET ";
-    }
 
     if (hex.startsWith("6a04534c500001010747454e45534953")) {
       if (debug) {

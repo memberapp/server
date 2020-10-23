@@ -74,10 +74,10 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 	var reposts = " LEFT JOIN messages as reposts ON messages.repost = reposts.txid ";
 	var repostid = " LEFT JOIN messages as repostid ON messages.canonicalid = repostid.repost AND repostid.address='" + address + "' ";
 	var repostvar = " ,repostid.txid as repostidtxid ";
-	
+
 	var likesanddislikes = " LEFT JOIN likesdislikes ON likesdislikes.address='" + address + "' AND likesdislikes.retxid=messages.txid ";
 	var rplikesanddislikes = " LEFT JOIN likesdislikes as rplikesdislikes ON rplikesdislikes.address='" + address + "' AND rplikesdislikes.retxid=messages.canonicalid ";
-	
+
 	var names = " LEFT JOIN names ON messages.address=names.address ";
 	var rpnames = " LEFT JOIN names as rpnames ON reposts.address=rpnames.address ";
 
@@ -99,7 +99,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 	//topicname may contain hostile characters - be careful in handling it
 	var topicquery = " ";
 	var topiclistquery = " ";
-	
+
 	var topicnameHOSTILE = (queryData.topicname || '');
 	topicnameHOSTILE = topicnameHOSTILE.toLowerCase().trim();
 
@@ -145,14 +145,14 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			postsOrComments = " AND messages.roottxid=messages.txid ";
 		}
 
-		var followsql=` LEFT JOIN follows ON messages.address=follows.follows and follows.address='` + address + `' `;
+		var followsql = ` LEFT JOIN follows ON messages.address=follows.follows and follows.address='` + address + `' `;
 		//todo - possible here that a blocked user might show up if they post in a topic the user is following
 		var followsORblocks = followsql + " LEFT JOIN blocks ON (messages.address=blocks.blocks OR reposts.address=blocks.blocks) AND blocks.address='" + address + "'";
 		var followsWhere = " and blocks.blocks IS NULL ";
-		
+
 		if (filter == "myfeed") { //My feed, posts from my subs or my peeps (does not exclude blocked members)
 			followsORblocks = followsql +
-			`LEFT JOIN subs ON messages.topic=subs.topic AND subs.address='` + address + `' `;
+				`LEFT JOIN subs ON messages.topic=subs.topic AND subs.address='` + address + `' `;
 			followsWhere = ` and (follows.address is not null OR subs.address is not null) `;
 		} else if (filter == "mypeeps") {
 			followsORblocks = followsql;
@@ -171,13 +171,13 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		if (topicnameHOSTILE == "mytopics" && filter == "mypeeps") {
 			followsORblocks = followsql + ` and follows.follows is not null
 			LEFT JOIN subs ON messages.topic=subs.topic `;
-			 followsWhere = ` AND subs.address='` + address + `' `;
+			followsWhere = ` AND subs.address='` + address + `' `;
 		}
 
 		if (topicnameHOSTILE == "myfeed" || filter == "myfeed") {
-			followsORblocks = followsql + 
-			` LEFT JOIN subs ON messages.topic=subs.topic and subs.address='` + address + `' `;
-			followsWhere =` and (follows.follows is not null or subs.topic is not null) `;
+			followsORblocks = followsql +
+				` LEFT JOIN subs ON messages.topic=subs.topic and subs.address='` + address + `' `;
+			followsWhere = ` and (follows.follows is not null or subs.topic is not null) `;
 		}
 
 
@@ -209,13 +209,13 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		if (qaddress != "" && qaddress != "undefined") {
 			specificuser = ` AND messages.address='` + qaddress + `' `;
 			followsORblocks = followsql;
-			followsWhere =" ";
+			followsWhere = " ";
 			firstseen = " ";
 
 			//todo
 			//on sqllite, specific user query and reposttxid work very slowly together. no idea why.
 			//probably some index could be added
-			if (issqlite){
+			if (issqlite) {
 				repostid = " ";
 				repostvar = " ";
 			}
@@ -227,10 +227,10 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			noreposts=` AND messages.repost IS NULL `;
 		}*/
 
-		sql = select + ` MIN(messages.firstseen), MAX(mods2.address) as moderated, messages.*,`+
-		rpnameselection.replace(/rp/g,'') +
-		rpnameselection+
-		`userratings.rating,
+		sql = select + ` MIN(messages.firstseen), MAX(mods2.address) as moderated, messages.*,` +
+			rpnameselection.replace(/rp/g, '') +
+			rpnameselection +
+			`userratings.rating,
 		rpuserratings.rating as rprating, 
 		messages.repliesdirect as replies,
 		messages.repliesroot as repliesroot,
@@ -261,28 +261,97 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		reposts.repliesdirect as rpreplies,
 		reposts.repliesroot as rprepliesroot,
 		reposts.repostcount as rprepostcount 
-		` +	repostvar + `
-		FROM messages as messages
-		` + reposts + `
-		` + mods + `
-		` + followsORblocks + `
-		
-		` + userratings + `
-		` + rpuserratings + `
-		` + names + `
-		` + rpnames + `
-		` + likesanddislikes + `
-		` + rplikesanddislikes + `
-		` + repostid + `
+		` + repostvar + `
+		FROM messages as messages `
+			+ reposts
+			+ mods
+			+ followsORblocks
+			+ userratings
+			+ rpuserratings
+			+ names
+			+ rpnames
+			+ likesanddislikes
+			+ rplikesanddislikes
+			+ repostid
+			+ ` LEFT JOIN blocks as rpblocks ON reposts.address=rpblocks.blocks AND rpblocks.address='` + address + `' ` 
+			+ ` WHERE 1=1 `
+			+ ` AND rpblocks.blocks IS NULL `
+			+ followsWhere
+			+ postsOrComments
+			+ topicquery
+			+ specificuser
+			+ firstseen
+			+ ` GROUP BY messages.canonicalid, mods2.address`
+			+ orderby + ` LIMIT ` + start + `,` + limit;
 
-		WHERE 1=1 
-		` + followsWhere  + `
-		` + postsOrComments + `
-		` + topicquery + `
-		` + specificuser + `
-		` + firstseen + ` GROUP BY messages.canonicalid, mods2.address   
-		` + orderby + ` LIMIT ` + start + `,` + limit;
+	}
 
+	//Threads - should be possible to merge this with the show action
+	if (action == "thread") {
+		var threadorder = " ORDER BY (LEAST(messages.likes,10)-LEAST(messages.dislikes,10)+LEAST(replies-1,10)+LEAST((messages.tips/10000),10))/" + timedivisor + " DESC, firstseen DESC, moderated DESC";
+		if (issqlite) threadorder = " ORDER BY (MIN(messages.likes,10)-MIN(messages.dislikes,10)+MIN(replies-1,10)+MIN((messages.tips/10000),10))/" + timedivisor + " DESC, firstseen DESC, moderated DESC";
+
+		if (txid.length < 10) {
+			txid = "nodice";
+		}
+		sql = select + ` DISTINCT(messages.txid), messages.*, mods2.address as moderated,
+			blocks.trxid as blockstxid,`+
+			rpnameselection.replace(/rp/g, '') +
+			rpnameselection +
+			`rating,
+			messages.repliesdirect as replies,
+			likesdislikes.txid as likedtxid, 
+			likesdislikes.type as likeordislike,
+			rplikesdislikes.txid as rplikedtxid, 
+			rplikesdislikes.type as rplikeordislike,
+			reposts.address as rpaddress,
+			reposts.amount as rpamount,
+			reposts.dislikes as rpdislikes,
+			reposts.firstseen as rpfirstseen,
+			reposts.geohash as rpgeohash,
+			reposts.language as rplanguage,
+			reposts.lat as rplat,
+			reposts.likes as rplikes,
+			reposts.lon as rplon,
+			reposts.message as rpmessage,
+			reposts.repliestree as rprepliestree,
+			reposts.repliesuniquemembers as rprepliesuniquemembers,
+			reposts.repost as rprepost,
+			reposts.repostcount as rprepostcount,
+			reposts.retxid as rpretxid,
+			reposts.roottxid as rproottxid,
+			reposts.tips as rptips,
+			reposts.topic as rptopic,
+			reposts.txid as rptxid,
+			reposts.repliesdirect as rpreplies,
+			reposts.repliesroot as rprepliesroot,
+			reposts.repostcount as rprepostcount   
+			FROM messages as messages3
+			LEFT JOIN messages ON messages.roottxid=messages3.roottxid 
+			LEFT JOIN messages as reposts ON messages.repost = reposts.txid `
+			+ userratings
+			+ names
+			+ rpnames
+			+ likesanddislikes
+			+ rplikesanddislikes
+			+ modsthread
+			+ `LEFT JOIN blocks ON messages.address=blocks.blocks AND blocks.address='` + address + `' WHERE 1=1  
+			AND messages3.txid LIKE '` + txid + `%' AND messages3.roottxid!='' ` + threadorder;
+	}
+
+	if (action == "singlepost") {
+		//Note, where a quote post is selected, the additional info for the quoted post is not available.
+		sql = select + ` messages.*,` +
+			rpnameselection.replace(/rp/g, '') +
+			`rating,
+			messages.repliesdirect as replies,
+			likesdislikes.txid as likedtxid, 
+			likesdislikes.type as likeordislike  
+			FROM messages `
+			+ userratings
+			+ names
+			+ likesanddislikes
+			+ `WHERE 1=1 AND messages.txid LIKE '` + txid + `%' LIMIT 1`;
 	}
 
 	//Notifications
@@ -293,8 +362,8 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 	}
 
 	if (action == "notifications") {
-		sql = select + ` notifications.*, `+
-			rpnameselection.replace(/rp/g,'origin') +
+		sql = select + ` notifications.*, ` +
+			rpnameselection.replace(/rp/g, 'origin') +
 			`u1.rating as rating, 
 			u1.reason as reason, 
 			likesdislikes.retxid as likeretxid, 
@@ -302,7 +371,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			originfollows.trxid as originisfollowing,
 			userfollows.trxid as userisfollowing,
 			tips.amount as amount,`+
-			rpnameselection.replace(/rp/g,'user') +
+			rpnameselection.replace(/rp/g, 'user') +
 			`u2.rating as selfrating, 
 			u3.rating as raterrating,			
 			r.address as raddress,
@@ -358,78 +427,12 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			LEFT JOIN messages as l ON likesdislikes.retxid=l.txid
 			LEFT JOIN messages as lrepostid ON l.canonicalid = lrepostid.repost AND lrepostid.address='` + address + `'
 			LEFT JOIN likesdislikes as llikesdislikes ON llikesdislikes.address='` + address + `' AND llikesdislikes.retxid=l.txid
-			
 			LEFT JOIN blocks ON notifications.origin=blocks.blocks AND blocks.address='` + address + `' 
 			WHERE blocks IS NULL
 			AND notifications.address='` + qaddress + `' 
 			AND notifications.address <> notifications.origin 
 			AND notifications.time>`+ sqltimestamp + `-(60*60*24*21)
 			ORDER BY notifications.time DESC LIMIT ` + start + `,` + limit;
-	}
-
-
-	//Threads
-	if (action == "thread") {
-		var threadorder = " ORDER BY (LEAST(messages.likes,10)-LEAST(messages.dislikes,10)+LEAST(replies-1,10)+LEAST((messages.tips/10000),10))/" + timedivisor + " DESC, firstseen DESC, moderated DESC";
-		if (issqlite) threadorder = " ORDER BY (MIN(messages.likes,10)-MIN(messages.dislikes,10)+MIN(replies-1,10)+MIN((messages.tips/10000),10))/" + timedivisor + " DESC, firstseen DESC, moderated DESC";
-	
-		if (txid.length < 10) {
-			txid = "nodice";
-		}
-		sql = select + ` DISTINCT(messages.txid), messages.*, mods2.address as moderated,
-		blocks.trxid as blockstxid,`+
-		rpnameselection.replace(/rp/g,'') +
-		rpnameselection +
-		`rating,
-		messages.repliesdirect as replies,
-		likesdislikes.txid as likedtxid, 
-		likesdislikes.type as likeordislike,
-		reposts.address as rpaddress,
-		reposts.amount as rpamount,
-		reposts.dislikes as rpdislikes,
-		reposts.firstseen as rpfirstseen,
-		reposts.geohash as rpgeohash,
-		reposts.language as rplanguage,
-		reposts.lat as rplat,
-		reposts.likes as rplikes,
-		reposts.lon as rplon,
-		reposts.message as rpmessage,
-		reposts.repliestree as rprepliestree,
-		reposts.repliesuniquemembers as rprepliesuniquemembers,
-		reposts.repost as rprepost,
-		reposts.repostcount as rprepostcount,
-		reposts.retxid as rpretxid,
-		reposts.roottxid as rproottxid,
-		reposts.tips as rptips,
-		reposts.topic as rptopic,
-		reposts.txid as rptxid,
-		reposts.repliesdirect as rpreplies,
-		reposts.repliesroot as rprepliesroot,
-		reposts.repostcount as rprepostcount   
-		FROM messages as messages3
-		LEFT JOIN messages ON messages.roottxid=messages3.roottxid 
-		LEFT JOIN messages as reposts ON messages.repost = reposts.txid ` 
-			+ userratings
-			+ names
-			+ rpnames
-			+ likesanddislikes
-			+ modsthread
-			+ `LEFT JOIN blocks ON messages.address=blocks.blocks AND blocks.address='` + address + `' WHERE 1=1  
-		AND messages3.txid LIKE '` + txid + `%' AND messages3.roottxid!='' ` + threadorder;
-	}
-
-	if (action == "singlepost") {
-		sql = select + ` messages.*,`+
-		rpnameselection.replace(/rp/g,'') +
-		`rating,
-		messages.repliesdirect as replies,
-		likesdislikes.txid as likedtxid, 
-		likesdislikes.type as likeordislike  
-		FROM messages `
-			+ userratings
-			+ names
-			+ likesanddislikes
-			+ `WHERE 1=1 AND messages.txid LIKE '` + txid + `%' LIMIT 1`;
 	}
 
 	//Map
@@ -440,7 +443,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			firstseen,
 			likes,
 			message,`+
-			rpnameselection.replace(/rp/g,'') +
+			rpnameselection.replace(/rp/g, '') +
 			`rating,
 			messages.retxid as retxid,
 			messages.roottxid as roottxid,
@@ -461,26 +464,8 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			AND lat<'` + north + `' AND lat>'` + south + `' AND lon<'` + east + `' AND lon>'` + west + `' ORDER BY messages.firstseen DESC LIMIT 25`;
 	}
 
-	//For member's page
-	if (action == `memberposts`) {
-		sql = select + ` 
-					messages.*, 
-					names.name as name, 
-					userratings.rating as rating, 
-					repliesdirect as replies, 
-					likesdislikes.txid as likedtxid, 
-					likesdislikes.type as likeordislike  
-					FROM messages
-					` + userratings + `
-					` + names + ` 
-					` + likesanddislikes + `
-					WHERE messages.address='` + qaddress + `' 
-					ORDER BY messages.firstseen 
-					DESC LIMIT ` + start + `,` + limit;
-	}
-
 	if (action == `followers`) {
-		sql = select + rpnameselection.replace(/rpnames/g,'n1').replace(/rp/g,'') + ` n1.address as address, rating as raterrating, n2.name as name2, n2.address as address2 
+		sql = select + rpnameselection.replace(/rpnames/g, 'n1').replace(/rp/g, '') + ` n1.address as address, rating as raterrating, n2.name as name2, n2.address as address2 
 			from follows 
 			LEFT JOIN userratings ON userratings.address='` + address + `' AND follows.address=userratings.rates 
 			INNER JOIN names n1 ON n1.address=follows.address
@@ -490,7 +475,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 	}
 
 	if (action == `following`) {
-		sql = select + rpnameselection.replace(/rpnames/g,'n1').replace(/rp/g,'') + ` n1.address as address, rating as raterrating, n2.name as name2, n2.address as address2 
+		sql = select + rpnameselection.replace(/rpnames/g, 'n1').replace(/rp/g, '') + ` n1.address as address, rating as raterrating, n2.name as name2, n2.address as address2 
 			from follows 
 			LEFT JOIN userratings ON userratings.address='` + address + `' AND follows.follows=userratings.rates 
 			INNER JOIN names n1 ON n1.address=follows.follows
@@ -500,7 +485,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 	}
 
 	if (action == `blockers`) {
-		sql = select + rpnameselection.replace(/rpnames/g,'n1').replace(/rp/g,'') + ` n1.address as address, rating as raterrating, n2.name as name2, n2.address as address2 
+		sql = select + rpnameselection.replace(/rpnames/g, 'n1').replace(/rp/g, '') + ` n1.address as address, rating as raterrating, n2.name as name2, n2.address as address2 
 			from blocks 
 			LEFT JOIN userratings ON userratings.address='` + address + `' AND blocks.address=userratings.rates
 			INNER JOIN names n1 ON n1.address=blocks.address 
@@ -509,7 +494,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 	}
 
 	if (action == `blocking`) {
-		sql = select + rpnameselection.replace(/rpnames/g,'n1').replace(/rp/g,'') + ` n1.address as address, rating as raterrating, n2.name as name2, n2.address as address2
+		sql = select + rpnameselection.replace(/rpnames/g, 'n1').replace(/rp/g, '') + ` n1.address as address, rating as raterrating, n2.name as name2, n2.address as address2
 			from blocks 
 			LEFT JOIN userratings ON userratings.address='` + address + `' AND blocks.blocks=userratings.rates 
 			INNER JOIN names n1 ON n1.address=blocks.blocks 
@@ -524,10 +509,10 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 	if (action == `rated`) {
 		sql = select + ` *,userratings.address as rateeaddress,(select name from names where address = '` + qaddress + `') as rateename from userratings INNER JOIN names ON names.address=userratings.address where userratings.rates='` + qaddress + `'  AND userratings.rating!=191 AND userratings.rating!=63 ORDER by userratings.rating DESC`;
 	}
-	
+
 	if (action == `settings`) {
 		sql = select + ` * from names 
-			INNER JOIN (SELECT count(*) as 'ratingnumber' FROM userratings where rates='` + qaddress  + `' and rating!='192' and rating!='63') as t3 
+			INNER JOIN (SELECT count(*) as 'ratingnumber' FROM userratings where rates='` + qaddress + `' and rating!='192' and rating!='63') as t3 
 			INNER JOIN (SELECT count(*) as 'isfollowing' FROM follows where address='` + address + `' AND follows='` + qaddress + `') as t4 
 			INNER JOIN (SELECT count(*) as 'isblocked' FROM blocks where address='` + address + `' AND blocks='` + qaddress + `') as t5 
 			INNER JOIN (SELECT reason as 'ratingreason',SUM(rating) as 'rating' FROM userratings where address='` + address + `' AND rates='` + qaddress + `') as r1 
@@ -539,7 +524,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		//sublasttime is added here to keep mysql happy
 		//subs.time as sublasttime
 		sql = select + `DISTINCT(allmods.modr), topics.*, topics.topic as topicname, subs.address as address, allmods.modr as existingmod,  
-		`+	rpnameselection.replace(/rp/g,'existingmod') + ` mymods.address as existingmodaddress FROM topics 
+		`+ rpnameselection.replace(/rp/g, 'existingmod') + ` mymods.address as existingmodaddress FROM topics 
 			LEFT JOIN subs on (topics.topic=subs.topic OR topics.topic='') AND subs.address='` + qaddress + `'
 			LEFT JOIN mods as allmods on allmods.topic=topics.topic and (allmods.modr=allmods.address)
 			LEFT JOIN names as existingmodnames on existingmodnames.address=allmods.modr
@@ -570,7 +555,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 				AND u2.rates = '` + qaddress + `'
 				ORDER by u1.rating DESC, u2.rating DESC;`;
 	}
-	
+
 	if (action == "usersearch") {
 		var usersearchHOSTILE = "%" + (queryData.searchterm.toLowerCase() || '') + "%";
 		//Searching the pagingid rather than the name for case insensitive search
@@ -584,11 +569,11 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 	}
 
 	if (action == "messages") {
-		sql = `SELECT privatemessages.*,`+
-				rpnameselection.replace(/rp/g,'') +
-				`privatemessages.address as senderaddress,`+ 
-				rpnameselection.replace(/rp/g,'recipient') +
-				` recipientnames.name as recipient, userratings.rating as raterrating from privatemessages
+		sql = `SELECT privatemessages.*,` +
+			rpnameselection.replace(/rp/g, '') +
+			`privatemessages.address as senderaddress,` +
+			rpnameselection.replace(/rp/g, 'recipient') +
+			` recipientnames.name as recipient, userratings.rating as raterrating from privatemessages
 				LEFT JOIN names as names ON privatemessages.address=names.address
 				LEFT JOIN names as recipientnames ON privatemessages.toaddress=recipientnames.address
 				LEFT JOIN userratings ON userratings.address='` + address + `' AND privatemessages.address=userratings.rates 
@@ -597,10 +582,10 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 					DESC LIMIT 100`;
 	}
 
-	if(action == "likesandtips"){
-		sql = `SELECT userratings.rating as raterrating, likes.address as address, `+
-		rpnameselection.replace(/rp/g,'') +
-		` likes.type, tips.amount, likes.address, follows.trxid FROM likesdislikes as likes
+	if (action == "likesandtips") {
+		sql = `SELECT userratings.rating as raterrating, likes.address as address, ` +
+			rpnameselection.replace(/rp/g, '') +
+			` likes.type, tips.amount, likes.address, follows.trxid FROM likesdislikes as likes
 		LEFT JOIN tips on tips.address = likes.address and tips.retxid=likes.retxid
 		LEFT JOIN names on names.address=likes.address
 		LEFT JOIN follows on likes.address=follows.follows and follows.address='` + address + `'

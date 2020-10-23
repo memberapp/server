@@ -29,7 +29,7 @@ var run = async function () {
     var sqlforaction = require('./sqlforaction.js');
     var dbqueries = require('./dbqueries.js');
     var dbhandler = require('./dbhandler.js');
-
+    var richlist = require('./balances.js');
   }
 
   {//External libs
@@ -79,6 +79,8 @@ var run = async function () {
     var vapidEmail = config.vapidEmail;
     var pushnotificationserver = config.pushnotificationserver;
     var keepNotificationsTime = config.keepNotificationsTime;
+    var tokenbalanceserver = config.tokenbalanceserver;
+    var tokenbalanceupdateinterval = config.tokenbalanceupdateinterval;
   }
 
   {//Conditionally included libs
@@ -127,6 +129,7 @@ var run = async function () {
     var blockConnection; //database connection for processing blocks
     var mempoolConnection; //database connection for processing mempool
     var logConnection; //database connection for writing long query logs
+    var rlConnection; //database connection for writing rl
 
     var dbpoolService;//database connection pool for web requests
 
@@ -143,16 +146,18 @@ var run = async function () {
         var timestampSQL = "strftime('%s', 'now')";
         var escapeFunction = function (s) { s = s + ""; s = s.replace(/'/g, "''"); return "'" + s + "'"; }
         var insertignore = "INSERT OR IGNORE ";
+        var onConflictAddress = " ON CONFLICT(address) DO UPDATE SET ";
       } else {
         var timestampSQL = "UNIX_TIMESTAMP()";
         var escapeFunction = mysql.escape;
         var insertignore = "INSERT IGNORE ";
+        var onConflictAddress = " ON DUPLICATE KEY UPDATE ";
       }
 
 
-      
-      expensiveHousekeepingSQLOperations.push(`DELETE from notifications where `+timestampSQL+`-notifications.time>`+config.keepNotificationsTime+`;`);
-      expensiveHousekeepingSQLOperations.push(`DELETE from notifications where `+timestampSQL+`-notifications.time>`+config.keepThreadNotificationsTime+` and notifications.type='thread';`);
+
+      expensiveHousekeepingSQLOperations.push(`DELETE from notifications where ` + timestampSQL + `-notifications.time>` + config.keepNotificationsTime + `;`);
+      expensiveHousekeepingSQLOperations.push(`DELETE from notifications where ` + timestampSQL + `-notifications.time>` + config.keepThreadNotificationsTime + ` and notifications.type='thread';`);
 
       //easier to add all notifications and just delete self notifications later
       expensiveHousekeepingSQLOperations.push(`DELETE from notifications where origin=address;`);
@@ -221,6 +226,7 @@ var run = async function () {
   blockConnection = await dbhandler.getConnection(dbtype, dbpoolapp);
   mempoolConnection = await dbhandler.getConnection(dbtype, dbpoolapp);
   logConnection = await dbhandler.getConnection(dbtype, dbpoolapp);
+  rlConnection = await dbhandler.getConnection(dbtype, dbpoolapp);
 
   dbpoolService = await dbhandler.createPool(dbtype, dbconfig);
 
@@ -388,7 +394,7 @@ var run = async function () {
 
         var opStartTime = new Date().getTime();
         var sql = getSQLForTRX(tx, result[i].time, result[i].blockno);
-        var oc = sqlforaction.lastoc
+        var oc = sqlforaction.lastoc;
         await putMultipleSQLStatementsInSQL(sql, blockConnection, query);
         var opEndTime = new Date().getTime();
         var opTime = opEndTime - opStartTime;
@@ -442,13 +448,13 @@ var run = async function () {
       try {
         var newTime = new Date().getTime();
         await blockConnection.runQuery(mempoolSQL[i]);
-          var duration = new Date().getTime() - newTime;
-          if (duration > 100) {
-            var logquery = "insert into zsqlqueries values (" + escapeFunction(mempoolSQL[i]) + "," + duration + ");"
-            await logConnection.runQuery(logquery);
-            console.log(mempoolSQL[i]);
-            console.log("Query Time (ms):" + duration);
-          }
+        var duration = new Date().getTime() - newTime;
+        if (duration > 100) {
+          var logquery = "insert into zsqlqueries values (" + escapeFunction(mempoolSQL[i]) + "," + duration + ");"
+          await logConnection.runQuery(logquery);
+          console.log(mempoolSQL[i]);
+          console.log("Query Time (ms):" + duration);
+        }
         //sqlToRun.push(dbbc.run(sql[i]));
       } catch (e) {
         console.error(e);
@@ -627,7 +633,7 @@ var run = async function () {
         return sql;
       }
 
-      return sql.concat(sqlforaction.getSQLForAction(tx, time, usesqlite, escapeFunction, blocknumber, profilepicpath, insertignore, querymemoformissingpics, debug, downloadprofilepics, keepThreadNotificationsTime, keepNotificationsTime));
+      return sql.concat(sqlforaction.getSQLForAction(tx, time, usesqlite, escapeFunction, blocknumber, profilepicpath, insertignore, querymemoformissingpics, debug, downloadprofilepics, keepThreadNotificationsTime, keepNotificationsTime, onConflictAddress));
     } catch (e2) {
       console.log(e2);
       return [];
@@ -1404,7 +1410,7 @@ var run = async function () {
             payload.picurl = result[i].picurl;
             payload.pagingid = result[i].pagingid;
             payload.txid = result[i].txid;*/
-            var stringToSend=JSON.stringify(result[i]);
+            var stringToSend = JSON.stringify(result[i]);
             console.log(stringToSend);
             //await webpush.sendNotification(JSON.parse(result[i].subscription), result[i].type);
             await webpush.sendNotification(JSON.parse(result[i].subscription), stringToSend);
@@ -1445,6 +1451,11 @@ var run = async function () {
       setTimeout(doPushNotifications, 10000);
     }
     //write last push
+  }
+
+  if (tokenbalanceserver) {
+    richlist.updateDB(rlConnection, onConflictAddress, escapeFunction, tokenbalanceserver);
+    setTimeout(function () { richlist.updateDB(rlConnection, onConflictAddress, escapeFunction); }, tokenbalanceupdateinterval);
   }
 
   //Utility functions
