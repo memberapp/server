@@ -647,12 +647,12 @@ var run = async function () {
     var currentTime = new Date().getTime();
     if (currentTime - lastExpensiveSQLHousekeepingOperation > dbHouseKeepingOperationInterval) {
       console.log("Adding SQL Housekeeping operation");
-      //lastExpensiveSQLHousekeepingOperation = currentTime;
+      lastExpensiveSQLHousekeepingOperation = currentTime;
       //return expensiveHousekeepingSQLOperations[Math.floor(Math.random() * expensiveHousekeepingSQLOperations.length)];
       return expensiveHousekeepingSQLOperations;
     }
     //return expensiveHousekeepingSQLOperations;
-    //return [];
+    return [];
   }
 
   async function writeToSQL(sql) {
