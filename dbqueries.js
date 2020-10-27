@@ -59,10 +59,10 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 	if (issqlite) minfunction = "MIN";
 
 	var least = " ORDER BY ("
-		+ minfunction + "( COALESCE(reposts.likes,0)+messages.likes ,10)-"
-		+ minfunction + "( COALESCE(reposts.dislikes,0)+messages.dislikes ,10)+"
-		+ minfunction + "( COALESCE(reposts.repliesuniquemembers,0)+messages.repliesuniquemembers ,10)+"
-		+ minfunction + "( (COALESCE(reposts.tips,0)+messages.tips) /10000,10))";
+		+ minfunction + "( messages.likes ,10)-"
+		+ minfunction + "( messages.dislikes ,10)+"
+		+ minfunction + "( messages.repliesuniquemembers ,10)+"
+		+ minfunction + "( messages.tips/10000,10))";
 
 	var sql = "SELECT VERSION();";
 
@@ -281,7 +281,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			+ topicquery
 			+ specificuser
 			+ firstseen
-			+ ` GROUP BY messages.canonicalid, mods2.address`
+			+ ` GROUP BY messages.canonicalid `
 			+ orderby + ` LIMIT ` + start + `,` + limit;
 
 	}
@@ -561,7 +561,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 	if (action == "usersearch") {
 		var usersearchHOSTILE = "%" + (queryData.searchterm.toLowerCase() || '') + "%";
 		//Searching the pagingid rather than the name for case insensitive search
-		sql = "SELECT names.*, userratings.rating as rating from names LEFT JOIN userratings ON names.address = userratings.rates AND userratings.address='" + address + "' where pagingid like " + escapeFunction(usersearchHOSTILE) + " or name like " + escapeFunction(usersearchHOSTILE) + " LIMIT 10";
+		sql = "SELECT names.*, userratings.rating as raterrating from names LEFT JOIN userratings ON names.address = userratings.rates AND userratings.address='" + address + "' where pagingid like " + escapeFunction(usersearchHOSTILE) + " or name like " + escapeFunction(usersearchHOSTILE) + " LIMIT 10";
 	}
 
 	if (action == "resolvepagingid") {

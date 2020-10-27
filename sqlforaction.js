@@ -111,7 +111,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction, blo
       var messages = processOPDATA(truncatehex.substring(4));
 
       //Add to notifications
-      var curTime = new Date().getTime()/1000;
+      var curTime = new Date().getTime() / 1000;
       var insertNotifications = (curTime - time < keepNotificationsTime);
 
       //Note, in the case of a pollvote, two of these will be activated
@@ -195,7 +195,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction, blo
         if (operationCode == "6d0b" || operationCode == "6d0f") { //Repost memo 	
           repostid = messages[0].match(/[a-fA-F0-9]{2}/g).reverse().join('');
           repostid = repostid.substr(0, MAXTXID);
-          
+
           decode = "";
           if (operationCode == "6d0b" && messages.length > 1) {
             decode = fromHex(messages[1]);
@@ -208,7 +208,7 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction, blo
             }
           }
 
-          if(!decode){
+          if (!decode) {
             canonicalid = repostid;
           }
         }
@@ -251,6 +251,12 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction, blo
           if (insertNotifications) {
             sql.push(insertignore + " into notifications VALUES(" + escapeFunction(repostid) + ",'repost',(SELECT address FROM messages WHERE txid = " + escapeFunction(repostid) + ")," + escapeFunction(sentFrom) + "," + escapeFunction(time) + ");");
           }
+        }
+
+        //topic notifications
+        if (insertNotifications) {
+          //Topic notifications - this may generate a lot of notifications
+          sql.push(insertignore + " into notifications SELECT * FROM (SELECT " + escapeFunction(txid) + ",'topic', address, " + escapeFunction(sentFrom) + "," + escapeFunction(time) + " FROM subs where subs.topic=" + escapeFunction(topic) + ") as tsubs; ");
         }
 
 
@@ -599,9 +605,17 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction, blo
 
         if (rating == 0) {
           sql.push("delete from userratings WHERE address=" + escapeFunction(sentFrom) + " AND rates=" + escapeFunction(userAddress) + ";");
-        } else if (rating > 0 && rating < 256) {
-          //May be possible to use 'ON DUPLICATE KEY UPDATE' if we want to keep note if rating is changed without new note
-          sql.push("replace into userratings VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(userAddress) + "," + escapeFunction(rating) + "," + escapeFunction(note) + "," + escapeFunction(txid) + "," + escapeFunction(time) + ");");
+        }
+        else if (rating > 0 && rating < 256) {
+
+          if (note) {
+            sql.push("replace into userratings VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(userAddress) + "," + escapeFunction(rating) + "," + escapeFunction(note) + "," + escapeFunction(txid) + "," + escapeFunction(time) + ");");
+          } else {
+            var conflict = onConflictAddress.replace('address', 'address,rates');
+            sql.push("insert into userratings VALUES (" + escapeFunction(sentFrom) + "," + escapeFunction(userAddress) + "," + escapeFunction(rating) + "," + escapeFunction(note) + "," + escapeFunction(txid) + "," + escapeFunction(time) + ") " + conflict + " rating=" + escapeFunction(rating)  + ", trxid=" + escapeFunction(txid) + ", time=" + escapeFunction(time) + ";");
+          }
+
+
           if (insertNotifications) {
             sql.push(insertignore + " into notifications VALUES(" + escapeFunction(txid) + ",'rating'," + escapeFunction(userAddress) + "," + escapeFunction(sentFrom) + "," + escapeFunction(time) + ");");
           }
@@ -734,6 +748,9 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction, blo
         //update public key if it hasn't been already recorded
         sql.push("insert into names VALUES (" + escapeFunction(sentFrom) + ",'','',0,'','',''," + escapeFunction(publicKey) + ",'',0,'',0,0,0,0,0) " + onConflictAddress + " publickey=" + escapeFunction(publicKey) + ";");
 
+        if (insertNotifications) {
+          sql.push(insertignore + " into notifications VALUES(" + escapeFunction(txid) + ",'message'," + escapeFunction(tipto) + "," + escapeFunction(sentFrom) + "," + escapeFunction(time) + ");");
+        }
 
       }
 

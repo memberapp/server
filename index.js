@@ -30,12 +30,12 @@ var run = async function () {
     var dbqueries = require('./dbqueries.js');
     var dbhandler = require('./dbhandler.js');
     var richlist = require('./balances.js');
+    var RpcClient = require('./rpcclient.js');
   }
 
   {//External libs
     var fs = require('fs');
     var bitcoinJs = require('bitcoinjs-lib');
-    var RpcClient = require('bitcoind-rpc');
   }
 
   {//Configuration settings
@@ -81,6 +81,8 @@ var run = async function () {
     var keepNotificationsTime = config.keepNotificationsTime;
     var tokenbalanceserver = config.tokenbalanceserver;
     var tokenbalanceupdateinterval = config.tokenbalanceupdateinterval;
+    var useServerWallets = config.useServerWallets;
+    var dbHouseKeepingOperationInterval = config.dbHouseKeepingOperationInterval; 
   }
 
   {//Conditionally included libs
@@ -156,8 +158,8 @@ var run = async function () {
 
 
 
-      expensiveHousekeepingSQLOperations.push(`DELETE from notifications where ` + timestampSQL + `-notifications.time>` + config.keepNotificationsTime + `;`);
-      expensiveHousekeepingSQLOperations.push(`DELETE from notifications where ` + timestampSQL + `-notifications.time>` + config.keepThreadNotificationsTime + ` and notifications.type='thread';`);
+      expensiveHousekeepingSQLOperations.push(`DELETE from notifications where notifications.time<` + timestampSQL + `-` + config.keepNotificationsTime + `;`);
+      expensiveHousekeepingSQLOperations.push(`DELETE from notifications where notifications.time<` + timestampSQL + `-` + config.keepThreadNotificationsTime + ` and notifications.type='thread';`);
 
       //easier to add all notifications and just delete self notifications later
       expensiveHousekeepingSQLOperations.push(`DELETE from notifications where origin=address;`);
@@ -641,9 +643,9 @@ var run = async function () {
   }
 
   function getHouseKeepingOperation() {
-    //These are expensive, so max of once per 60 minutes
+    //These are expensive, so max of once per day
     var currentTime = new Date().getTime();
-    if (currentTime - lastExpensiveSQLHousekeepingOperation > 60 * 60 * 1000) {
+    if (currentTime - lastExpensiveSQLHousekeepingOperation > dbHouseKeepingOperationInterval) {
       console.log("Adding SQL Housekeeping operation");
       //lastExpensiveSQLHousekeepingOperation = currentTime;
       //return expensiveHousekeepingSQLOperations[Math.floor(Math.random() * expensiveHousekeepingSQLOperations.length)];
@@ -881,21 +883,49 @@ var run = async function () {
 
       try {
         if (req.url.startsWith("/v2/address/utxo/bitcoincash:")) {
-          res.writeHead(200, { "Access-Control-Allow-Origin": AccessControlAllowOrigin, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-cache' });
+          res.writeHead(200, { "Access-Control-Allow-Origin": AccessControlAllowOrigin, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
           let address = sanitizeAlphanumeric(req.url.substr(29));
           if (address.length > 120) {
             res.end(`{"error":"Address Too Long"}`);
             return;
           }
-          if (bchdgrpcenabled) {
+          if (useServerWallets) {
+            console.log(req.url);
+            rpc.listUnspent(0, 9999999, [address], function (err, ret) {
+              if (ret.result.length == 0) {
+                //todo: forward the request
+              }
+              console.log(ret.result.length);
+              returnUTXOs(err, ret, res);
+              return;
+            });
+            return;
+          } else if (bchdgrpcenabled) {
             client.getAddressUnspentOutputs({ address: address, includemempool: true }, {}, function (err, response) { returnUTXOs(err, response, res); });
             return;
           } else {
             //rpc.listUnspent({ address }, function (err, ret) { returnUTXOs(err, ret, res); });
             res.end(`{"error":"BCHD GRPC - Not Supported"}`);
+            return;
           }
+        } else if (req.url.startsWith("/v2/reg/")) {
+          res.writeHead(200, { "Access-Control-Allow-Origin": AccessControlAllowOrigin, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+          if (useServerWallets) {
+            let key = sanitizeAlphanumeric(req.url.split('?')[0].substr(8));
+            if (key.length > 120) {
+              res.end(`{"error":"Address Too Long"}`);
+              return;
+            }
+            rpc.importPubKey(key, key, false, function (err, ret) {
+              res.end("OK");
+              return;
+            });
+          } else {
+            res.end(`{"error":"Not Supported"}`);
+          }
+          return;
         } else if (req.url.startsWith("/v2/rawtransactions/sendRawTransaction/")) {
-          res.writeHead(200, { "Access-Control-Allow-Origin": AccessControlAllowOrigin, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-cache' });
+          res.writeHead(200, { "Access-Control-Allow-Origin": AccessControlAllowOrigin, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
           console.log("webserver transaction received");
           let transaction = sanitizeAlphanumeric(req.url.substr(39));
           if (transaction.length > acceptmaxtrxsize) { //Max 5K transaction
@@ -924,7 +954,7 @@ var run = async function () {
         } else if (req.url.startsWith("/pn/sub?")) {
           try {
             //console.log(req.url);
-            res.writeHead(200, { "Access-Control-Allow-Origin": AccessControlAllowOrigin, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-cache' });
+            res.writeHead(200, { "Access-Control-Allow-Origin": AccessControlAllowOrigin, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
 
             var qs = querystring.parse(req.url.substr(8));
             var address = sanitizeAlphanumeric(qs.address);
@@ -938,7 +968,7 @@ var run = async function () {
 
             var inserts = [];
             var theTime = Math.floor(Date.now() / 1000);
-            inserts.push(insertignore + " INTO pushnotificationsubscribers VALUES (" + escapeFunction(address) + "," + escapeFunction(qs.subscription) + "," + escapeFunction(theTime) + "," + escapeFunction(theTime) + "," + escapeFunction(theTime) + ");");
+            inserts.push("REPLACE INTO pushnotificationsubscribers VALUES (" + escapeFunction(address) + "," + escapeFunction(qs.subscription) + "," + escapeFunction(theTime) + "," + escapeFunction(theTime) + "," + escapeFunction(theTime) + ");");
             mempoolSQL = mempoolSQL.concat(inserts);
             return;
 
@@ -952,7 +982,7 @@ var run = async function () {
             //const subscription = req.body
             //await saveToDatabase(subscription) //Method to save the subscription to Database
             console.log(req.body);
-            //res.writeHead(200, { "Access-Control-Allow-Origin": AccessControlAllowOrigin, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-cache' });
+            //res.writeHead(200, { "Access-Control-Allow-Origin": AccessControlAllowOrigin, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
             //res.write(`{ message: 'success' }`);
             //res.end();
             //sendNotification(subscription, message);
@@ -964,7 +994,7 @@ var run = async function () {
           }
 
         }
-        else if (req.url.startsWith("/p/")) {
+        else if (req.url.startsWith("/p/") || req.url.startsWith("/a/")) {
           console.log(req.url);
           res.writeHead(200, { "Access-Control-Allow-Origin": AccessControlAllowOrigin, 'Content-Type': 'text/html; charset=utf-8' });
           //get first 10 characters, sanitized
@@ -1110,6 +1140,9 @@ var run = async function () {
                 imageLink = youtubeLink;
               }
 
+              if (imageLink == `https://member.cash/img/logos/logowide2.png` && rows[0].picurl) {
+                imageLink = `https://member.cash/img/profilepics/` + rows[0].address + `.640x640.jpg`;
+              }
             } else if (type == "member") {
               var memberText = ds(rows[0].name) + ` @` + ds(rows[0].pagingid) + ` member.cash profile `;
               var memberDescription = ds(rows[0].profile.replace(/\n/g, " "));
@@ -1213,18 +1246,18 @@ var run = async function () {
             //Check a result has been directly moderated
             if (rows[i].moderated != null && rows[i].moderated != "") {
               moderatedtxid = rows[i].txid;
-              //Return the moderated results for now, client can decide how to deal with them
+              ////Return the moderated results for now, client can decide how to deal with them
               //rows.splice(i, 1);
               //i--;
               continue;
             }
 
             //Check if a similar result has been returned directly following the moderated result
-            if (rows[i].txid == moderatedtxid) {
+            /*if (rows[i].txid == moderatedtxid) {
               rows.splice(i, 1);
               i--;
               continue;
-            }
+            }*/
 
           }
 
@@ -1233,7 +1266,7 @@ var run = async function () {
             rows[0].msc = msc;
             rows[0].query = query.replace(/\t/g, ' ').replace(/\n/g, ' ');
           }
-          res.writeHead(200, { "Access-Control-Allow-Origin": AccessControlAllowOrigin, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-cache' });
+          res.writeHead(200, { "Access-Control-Allow-Origin": AccessControlAllowOrigin, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
           res.end(JSON.stringify(rows));
 
           if (msc > 100) {
@@ -1350,6 +1383,17 @@ var run = async function () {
     //This function converts from GRPC return format to same format as used by Bitbox
     function returnUTXOs(err, response, res) {
 
+      var utxos;
+      if (response.result) {
+        utxos = response.result;
+      }
+
+      if (response.outputs) {
+        utxos = response.outputs;
+      }
+
+
+
       if (err) {
         // Send back a response and end the connection
         res.writeHead(500);
@@ -1357,13 +1401,17 @@ var run = async function () {
         return;
       }
 
-      let utxos = response.outputs;
+
       var stringutxos = ``;
       for (var i = 0; i < utxos.length; i++) {
         //console.log(utxos[i].outpoint.hash.toString('hex')+" "+utxos[i].outpoint.index+" "+utxos[i].value);
-        if (utxos[i].value != 546) {//don't return dust
-          let txid = utxos[i].outpoint.hash.toString('hex').match(/[a-fA-F0-9]{2}/g).reverse().join('');
-          stringutxos += `{"txid":"` + txid + `","vout":` + utxos[i].outpoint.index + `,"satoshis":` + utxos[i].value + `},`;
+        if (utxos[i].value != 546 && utxos[i].satoshi != 546) {//don't return dust
+          if (utxos[i].outpoint) {
+            let txid = utxos[i].outpoint.hash.toString('hex').match(/[a-fA-F0-9]{2}/g).reverse().join('');
+            stringutxos += `{"txid":"` + txid + `","vout":` + utxos[i].outpoint.index + `,"satoshis":` + utxos[i].value + `},`;
+          } else {
+            stringutxos += `{"txid":"` + utxos[i].txid + `","vout":` + utxos[i].vout + `,"satoshis":` + utxos[i].satoshi + `},`;
+          }
         }
       }
 
@@ -1455,7 +1503,7 @@ var run = async function () {
 
   if (tokenbalanceserver) {
     richlist.updateDB(rlConnection, onConflictAddress, escapeFunction, tokenbalanceserver);
-    setTimeout(function () { richlist.updateDB(rlConnection, onConflictAddress, escapeFunction); }, tokenbalanceupdateinterval);
+    setTimeout(function () { richlist.updateDB(rlConnection, onConflictAddress, escapeFunction, tokenbalanceserver); }, tokenbalanceupdateinterval);
   }
 
   //Utility functions
