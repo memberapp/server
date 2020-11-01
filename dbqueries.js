@@ -337,7 +337,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			+ rplikesanddislikes
 			+ modsthread
 			+ `LEFT JOIN blocks ON messages.address=blocks.blocks AND blocks.address='` + address + `' WHERE 1=1  
-			AND messages3.txid LIKE '` + txid + `%' AND messages3.roottxid!='' ` + threadorder;
+			AND messages3.txid = (select txid from messages where txid LIKE '` + txid + `%' LIMIT 1) AND messages3.roottxid!='' ` + threadorder;
 	}
 
 	if (action == "singlepost") {
@@ -352,7 +352,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			+ userratings
 			+ names
 			+ likesanddislikes
-			+ `WHERE 1=1 AND messages.txid LIKE '` + txid + `%' LIMIT 1`;
+			+ `WHERE 1=1 AND messages.txid = (select txid from messages where txid LIKE '` + txid + `%' LIMIT 1) LIMIT 1`;
 	}
 
 	//Notifications
