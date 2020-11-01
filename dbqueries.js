@@ -182,9 +182,10 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 
 
 
-		//Default to a month
-		var firstseen = " AND messages.firstseen>" + sqltimestamp + "-(60*60*24*30) ";
+		//Default to two weeks
+		var firstseen = " AND messages.firstseen>" + sqltimestamp + "-(60*60*24*14) ";
 
+		//These generally help to cut down the amount of time required for sql queries
 		if (order == 'topd') {
 			firstseen = " AND messages.firstseen>" + sqltimestamp + "-(60*60*24*1) ";
 		} else if (order == 'top48') {
@@ -281,7 +282,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			+ topicquery
 			+ specificuser
 			+ firstseen
-			+ ` GROUP BY messages.canonicalid `
+			+ ` GROUP BY messages.canonicalid ` // This is shockingly slow
 			+ orderby + ` LIMIT ` + start + `,` + limit;
 
 	}
@@ -593,6 +594,17 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 		LEFT JOIN follows on likes.address=follows.follows and follows.address='` + address + `'
 		LEFT JOIN userratings ON userratings.address='` + address + `' AND names.address=userratings.rates 
 		WHERE likes.retxid='` + txid + `'
+		order by amount desc`;
+	}
+
+	if (action == "remembers") {
+		sql = `SELECT userratings.rating as raterrating, messages.txid, messages.message, messages.topic, messages.address, ` +
+			rpnameselection.replace(/rp/g, '') +
+			` follows.trxid FROM messages
+		LEFT JOIN names on names.address=messages.address
+		LEFT JOIN follows on messages.address=follows.follows and follows.address='` + address + `'
+		LEFT JOIN userratings ON userratings.address='` + address + `' AND names.address=userratings.rates 
+		WHERE messages.repost='` + txid + `'
 		order by amount desc`;
 	}
 

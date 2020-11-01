@@ -128,10 +128,10 @@ var run = async function () {
     var memotxidsalreadyprocessed = [];
     //sql
     var dbpoolapp;//database connection pool for essential app functions
-    var blockConnection; //database connection for processing blocks
-    var mempoolConnection; //database connection for processing mempool
-    var logConnection; //database connection for writing long query logs
-    var rlConnection; //database connection for writing rl
+    //var blockConnection; //database connection for processing blocks
+    //var mempoolConnection; //database connection for processing mempool
+    //var logConnection; //database connection for writing long query logs
+    //var rlConnection; //database connection for writing rl
 
     var dbpoolService;//database connection pool for web requests
 
@@ -225,10 +225,10 @@ var run = async function () {
 
   dbpoolapp = await dbhandler.createPool(dbtype, dbconfig);
   var result = await dbpoolapp.runQuery("select 1=1;");
-  blockConnection = await dbhandler.getConnection(dbtype, dbpoolapp);
-  mempoolConnection = await dbhandler.getConnection(dbtype, dbpoolapp);
-  logConnection = await dbhandler.getConnection(dbtype, dbpoolapp);
-  rlConnection = await dbhandler.getConnection(dbtype, dbpoolapp);
+  //blockConnection = await dbhandler.getConnection(dbtype, dbpoolapp);
+  //mempoolConnection = await dbhandler.getConnection(dbtype, dbpoolapp);
+  //logConnection = await dbhandler.getConnection(dbtype, dbpoolapp);
+  //rlConnection = await dbhandler.getConnection(dbtype, dbpoolapp);
 
   dbpoolService = await dbhandler.createPool(dbtype, dbconfig);
 
@@ -243,21 +243,35 @@ var run = async function () {
     if (usesqlite) {
       //dbbc = await sqlite.open(sqldbfile);
 
+      //FULL
+      //This mode blocks (invokes the busy-handler callback) until there is no database writer 
+      //and all readers are reading from the most recent database snapshot. It then checkpoints 
+      //all frames in the log file and syncs the database file. FULL blocks concurrent writers 
+      //while it is running, but readers can proceed. 
+      //RESTART
+      //This mode works the same way as FULL with the addition that after checkpointing the log 
+      //file it blocks (calls the busy-handler callback) until all readers are finished with the 
+      //log file. This ensures that the next client to write to the database file restarts the log 
+      //file from the beginning. RESTART blocks concurrent writers while it is running, but allowed 
+      //readers to proceed. 
+      //TRUNCATE
+      //This mode works the same way as RESTART with the addition that the WAL file is truncated to 
+      //zero bytes upon successful completion.
+      await dbpoolapp.runQuery("PRAGMA wal_checkpoint(TRUNCATE)");
+
       //Defines the number of pages from the database file for storing in RAM, i.e., the cache size.
       //Increasing this parameter may increase performance of the database on high load, since the 
       //greater its value is, the more modifications a session can perform before retrieving 
       //exclusive lock.
-
-
       //await dbbc.run("PRAGMA cache_size=100000");
-      await blockConnection.runQuery("PRAGMA cache_size=100000");
+      await dbpoolapp.runQuery("PRAGMA cache_size=100000");
 
 
       //EXCLUSIVE — the database file is used in exclusive mode. The number of system calls 
       //to implement file operations decreases in this case, which may increase database performance.
       //Use only for initial sync
       //await dbbc.run("PRAGMA LOCKING_MODE = EXCLUSIVE");
-      await blockConnection.runQuery("PRAGMA LOCKING_MODE = EXCLUSIVE");
+      await dbpoolapp.runQuery("PRAGMA LOCKING_MODE = EXCLUSIVE");
 
       //0 | OFF — database synchronization is not used. I.e., SQLite takes no breaks when 
       //transmitting data to the operating system. Such mode can substantially increase 
@@ -265,11 +279,11 @@ var run = async function () {
       // however, data will be corrupted in case of system crash or power off.
       //Use only for initial sync
       //await dbbc.run("PRAGMA synchronous = OFF");
-      await blockConnection.runQuery("PRAGMA synchronous = OFF");
+      await dbpoolapp.runQuery("PRAGMA synchronous = OFF");
 
       if (completeDBrebuild && allowpragmajournalmode) {
         //await dbbc.run("PRAGMA JOURNAL_MODE = MEMORY");
-        await blockConnection.runQuery("PRAGMA JOURNAL_MODE = MEMORY");
+        await dbpoolapp.runQuery("PRAGMA JOURNAL_MODE = MEMORY");
       }
     }
 
@@ -284,7 +298,7 @@ var run = async function () {
     currentBlock = 525471;
 
     //var result = await dbbc.get("SELECT * FROM status WHERE name='lastblockprocessed';");
-    var result = await blockConnection.runQuery("SELECT * FROM status WHERE name='lastblockprocessed';");
+    var result = await dbpoolapp.runQuery("SELECT * FROM status WHERE name='lastblockprocessed';");
 
     try {
       currentBlock = result[0].value;
@@ -303,7 +317,10 @@ var run = async function () {
       //corrupted with high probability due to a lack of saved data copy on the disk.
       //Use only if there are a lot more blocks to process
       //await dbbc.run("PRAGMA JOURNAL_MODE = MEMORY");
-      await blockConnection.runQuery("PRAGMA JOURNAL_MODE = MEMORY");
+      await dbpoolapp.runQuery("PRAGMA JOURNAL_MODE = MEMORY");
+
+
+
     }
 
     lastBlockSuccessfullyProcessed = currentBlock - 1;
@@ -312,9 +329,18 @@ var run = async function () {
 
   async function runSafeDBPolicy() {
     if (usesqlite) {
-      await blockConnection.runQuery("PRAGMA LOCKING_MODE = NORMAL");
-      await blockConnection.runQuery("PRAGMA synchronous = FULL");
-      await blockConnection.runQuery("PRAGMA JOURNAL_MODE = DELETE");
+      await dbpoolapp.runQuery("PRAGMA LOCKING_MODE = NORMAL");
+      await dbpoolapp.runQuery("PRAGMA synchronous = FULL");
+      //await dbpoolapp.runQuery("PRAGMA JOURNAL_MODE = DELETE");
+      
+      //The default method by which SQLite implements atomic commit and rollback is a rollback journal.
+      //Beginning with version 3.7.0 (2010-07-21), a new "Write-Ahead Log" option (hereafter referred to as "WAL") is available.
+      //There are advantages and disadvantages to using WAL instead of a rollback journal. Advantages include:
+      //WAL is significantly faster in most scenarios.
+      //WAL provides more concurrency as readers do not block writers and a writer does not block readers. Reading and writing can proceed concurrently.
+      //Disk I/O operations tends to be more sequential using WAL.
+      //WAL uses many fewer fsync() operations and is thus less vulnerable to problems on systems where the fsync() system call is broken. 
+      await dbpoolapp.runQuery("PRAGMA journal_mode=WAL");
     }
   }
 
@@ -368,12 +394,12 @@ var run = async function () {
       deletedb.push("delete from topics;");
       deletedb.push("delete from userratings;");
       //deletedb.push("delete from zsqlqueries;");
-      await putMultipleSQLStatementsInSQL(deletedb, blockConnection, query);
+      await putMultipleSQLStatementsInSQL(deletedb, dbpoolapp, query);
     }
 
     console.log(" Transactions: " + whereClause);
 
-    await blockConnection.runQuery(fullquery);
+    await dbpoolapp.runQuery(fullquery);
     /*if (usesqlite) {
       result = await dbbc.all(fullquery);
     } else {
@@ -397,7 +423,7 @@ var run = async function () {
         var opStartTime = new Date().getTime();
         var sql = getSQLForTRX(tx, result[i].time, result[i].blockno);
         var oc = sqlforaction.lastoc;
-        await putMultipleSQLStatementsInSQL(sql, blockConnection, query);
+        await putMultipleSQLStatementsInSQL(sql, dbpoolapp, query);
         var opEndTime = new Date().getTime();
         var opTime = opEndTime - opStartTime;
         if (!opTimes[oc]) {
@@ -415,8 +441,8 @@ var run = async function () {
           var perThousandEndTime = new Date().getTime();
           console.log(i + " :Time per thousand: " + (perThousandEndTime - perThousandTime));
 
-          await putMultipleSQLStatementsInSQL([fixOrphanMessages], blockConnection, query);
-          await putMultipleSQLStatementsInSQL([fixOrphanMessages2], blockConnection, query);
+          await putMultipleSQLStatementsInSQL([fixOrphanMessages], dbpoolapp, query);
+          await putMultipleSQLStatementsInSQL([fixOrphanMessages2], dbpoolapp, query);
           perThousandTime = new Date().getTime();
 
           //for(var j=0;j<opCount.length;j++){
@@ -449,11 +475,11 @@ var run = async function () {
       if (mempoolSQL[i] == "") continue;
       try {
         var newTime = new Date().getTime();
-        await blockConnection.runQuery(mempoolSQL[i]);
+        await dbpoolapp.runQuery(mempoolSQL[i]);
         var duration = new Date().getTime() - newTime;
         if (duration > 100) {
           var logquery = "insert into zsqlqueries values (" + escapeFunction(mempoolSQL[i]) + "," + duration + ");"
-          await logConnection.runQuery(logquery);
+          await dbpoolapp.runQuery(logquery);
           console.log(mempoolSQL[i]);
           console.log("Query Time (ms):" + duration);
         }
@@ -673,12 +699,16 @@ var run = async function () {
     if (mempoolprocessingstarted) {
       //Don't want to perform housekeeping if still doing initial sync
       sql = sql.concat(getHouseKeepingOperation());
+      if(sqlite){
+        //Try to sync wal log with database if sqlite
+        sql.push("PRAGMA wal_checkpoint(RESTART)");
+      }
     }
 
     //if (usesqlite) {
     try {
       sqlTime = new Date().getTime();
-      await putMultipleSQLStatementsInSQL(sql, blockConnection);
+      await putMultipleSQLStatementsInSQL(sql, dbpoolapp);
     }
     catch (e) {
       return afterBlockProcessing(e, null);
@@ -801,7 +831,7 @@ var run = async function () {
 
     //if (usesqlite) {
     try {
-      await putMultipleSQLStatementsInSQL(mempoolSQL, mempoolConnection);
+      await putMultipleSQLStatementsInSQL(mempoolSQL, dbpoolapp);
     }
     catch (e) {
       return finishMempoolProcessing(e, null, trxidsbeingprocessed);
@@ -879,7 +909,7 @@ var run = async function () {
     }
 
     async function webServer(req, res) {
-      console.log("webserver request received");
+      console.log("webserver request received:"+req.url);
 
       try {
         if (req.url.startsWith("/v2/address/utxo/bitcoincash:")) {
@@ -1266,6 +1296,7 @@ var run = async function () {
             rows[0].msc = msc;
             rows[0].query = query.replace(/\t/g, ' ').replace(/\n/g, ' ');
           }
+
           res.writeHead(200, { "Access-Control-Allow-Origin": AccessControlAllowOrigin, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
           res.end(JSON.stringify(rows));
 
@@ -1273,7 +1304,7 @@ var run = async function () {
             var logquery = "insert into zsqlqueries values (" + escapeFunction(query) + "," + msc + ");"
             console.log(query);
             console.log("Query Time (ms):" + msc);
-            logConnection.runQuery(logquery);
+            dbpoolapp.runQuery(logquery);
           }
 
           return;
@@ -1459,7 +1490,7 @@ var run = async function () {
             payload.pagingid = result[i].pagingid;
             payload.txid = result[i].txid;*/
             var stringToSend = JSON.stringify(result[i]);
-            console.log(stringToSend);
+            //console.log(stringToSend);
             //await webpush.sendNotification(JSON.parse(result[i].subscription), result[i].type);
             await webpush.sendNotification(JSON.parse(result[i].subscription), stringToSend);
             //console.log("Sent Notification:" + i);
@@ -1468,20 +1499,23 @@ var run = async function () {
             try {
               //handle not subscribed etc
               console.log("Error Notification:" + i);
-              console.log(err);
+              //console.log(err);
 
               var unsub = "DELETE FROM pushnotificationsubscribers where address=" + escapeFunction(result[i].address) + " and subscription=" + escapeFunction(result[i].subscription) + ";";
 
               if (err.statusCode && err.statusCode == 410) {
                 await dbpoolapp.runQuery(unsub);
+                console.log("Unsub:" + result[i].address);
                 continue;
               }
 
 
-              console.log(err.body);
+              //console.log(err.body);
               var errcodes = JSON.parse(err.body);
               if (errcodes.errno == 106) {
                 await dbpoolapp.runQuery(unsub);
+                console.log("Unsub:" + result[i].address);
+                continue;
               }
             } catch (err) {
               console.log("Error While Handling Unsub:" + i);
@@ -1496,14 +1530,14 @@ var run = async function () {
       } catch (err) {
         console.log(err);
       }
-      setTimeout(doPushNotifications, 10000);
+      setTimeout(doPushNotifications, 1000);
     }
     //write last push
   }
 
   if (tokenbalanceserver) {
-    richlist.updateDB(rlConnection, onConflictAddress, escapeFunction, tokenbalanceserver);
-    setTimeout(function () { richlist.updateDB(rlConnection, onConflictAddress, escapeFunction, tokenbalanceserver); }, tokenbalanceupdateinterval);
+    richlist.updateDB(dbpoolapp, onConflictAddress, escapeFunction, tokenbalanceserver);
+    setTimeout(function () { richlist.updateDB(dbpoolapp, onConflictAddress, escapeFunction, tokenbalanceserver); }, tokenbalanceupdateinterval);
   }
 
   //Utility functions

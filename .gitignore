@@ -11,3 +11,5 @@ data/member.rar
 data/memberTemplate.rar
 data/memberFreshDBimportFrom655323.rar
 .vscode/launch.json
+data/member.db-shm
+data/member.db-wal
