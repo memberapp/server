@@ -156,7 +156,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			followsWhere = ` and (follows.address is not null OR subs.address is not null) `;
 		} else if (filter == "mypeeps") {
 			followsORblocks = followsql;
-			followsWhere = "";
+			followsWhere = ` and follows.address is not null `;
 		}
 
 
@@ -202,8 +202,13 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			firstseen = " ";
 			if (topicnameHOSTILE == "" || topicnameHOSTILE == "mytopics") { firstseen += " AND messages.likes>10 "; } //Makes sql query faster
 		} else if (order == 'new') {
-			if (topicnameHOSTILE != "" && topicnameHOSTILE != "mytopics" && topicnameHOSTILE != "myfeed" && filter != "myfeed")
-				firstseen = " ";
+			if (topicnameHOSTILE != "" && topicnameHOSTILE != "mytopics" && topicnameHOSTILE != "myfeed" && filter != "myfeed"){
+				//Two months for new stuff in a topic so that there's a good chance something will be returned
+				//sqlite seems to be particularly slow for these, so add
+				if(issqlite){
+					firstseen = " AND messages.firstseen>" + sqltimestamp + "-(60*60*24*60) ";
+				}
+			}
 		}
 
 		var specificuser = "";
@@ -283,6 +288,7 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			+ specificuser
 			+ firstseen
 			+ ` GROUP BY messages.canonicalid ` // This is shockingly slow
+			+ ` HAVING moderated IS NULL `
 			+ orderby + ` LIMIT ` + start + `,` + limit;
 
 	}

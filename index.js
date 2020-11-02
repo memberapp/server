@@ -14,6 +14,9 @@
  *    <https://www.gnu.org/licenses/agpl-3.0.en.html>.
  *
  */
+
+ //Version 4.20
+ 
 'use strict';
 
 var run = async function () {
@@ -981,7 +984,7 @@ var run = async function () {
             console.log(err);
           }
 
-        } else if (req.url.startsWith("/pn/sub?")) {
+        } else if (req.url.startsWith("/v2/pn/sub?")) {
           try {
             //console.log(req.url);
             res.writeHead(200, { "Access-Control-Allow-Origin": AccessControlAllowOrigin, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
