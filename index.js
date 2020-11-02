@@ -16,8 +16,6 @@
  */
 'use strict';
 
-//const { vapidPrivateKey } = require('../memberprivateconfig.js');
-
 var run = async function () {
 
   {//App includes
@@ -82,7 +80,7 @@ var run = async function () {
     var tokenbalanceserver = config.tokenbalanceserver;
     var tokenbalanceupdateinterval = config.tokenbalanceupdateinterval;
     var useServerWallets = config.useServerWallets;
-    var dbHouseKeepingOperationInterval = config.dbHouseKeepingOperationInterval; 
+    var dbHouseKeepingOperationInterval = config.dbHouseKeepingOperationInterval;
   }
 
   {//Conditionally included libs
@@ -102,7 +100,6 @@ var run = async function () {
 
     if (httpserverenabled || httpsserverenabled) {
       var url = require('url');
-      var webpush = require('web-push'); //For notifications
       var querystring = require('querystring');
 
       if (httpserverenabled) {
@@ -112,7 +109,10 @@ var run = async function () {
       if (httpsserverenabled) {
         var https = require('https');
       }
+    }
 
+    if (pushnotificationserver) {
+      var webpush = require('web-push'); //For notifications
       const vapidKeys = { publicKey: vapidPublicKey, privateKey: vapidPrivateKey };
       webpush.setVapidDetails(vapidEmail, vapidKeys.publicKey, vapidKeys.privateKey);
     }
@@ -332,7 +332,7 @@ var run = async function () {
       await dbpoolapp.runQuery("PRAGMA LOCKING_MODE = NORMAL");
       await dbpoolapp.runQuery("PRAGMA synchronous = FULL");
       //await dbpoolapp.runQuery("PRAGMA JOURNAL_MODE = DELETE");
-      
+
       //The default method by which SQLite implements atomic commit and rollback is a rollback journal.
       //Beginning with version 3.7.0 (2010-07-21), a new "Write-Ahead Log" option (hereafter referred to as "WAL") is available.
       //There are advantages and disadvantages to using WAL instead of a rollback journal. Advantages include:
@@ -699,7 +699,7 @@ var run = async function () {
     if (mempoolprocessingstarted) {
       //Don't want to perform housekeeping if still doing initial sync
       sql = sql.concat(getHouseKeepingOperation());
-      if(sqlite){
+      if (sqlite) {
         //Try to sync wal log with database if sqlite
         sql.push("PRAGMA wal_checkpoint(RESTART)");
       }
@@ -909,7 +909,7 @@ var run = async function () {
     }
 
     async function webServer(req, res) {
-      console.log("webserver request received:"+req.url);
+      console.log("webserver request received:" + req.url);
 
       try {
         if (req.url.startsWith("/v2/address/utxo/bitcoincash:")) {
