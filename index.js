@@ -15,8 +15,8 @@
  *
  */
 
- //Version 4.20
- 
+//Version 4.20
+
 'use strict';
 
 var run = async function () {
@@ -37,6 +37,7 @@ var run = async function () {
   {//External libs
     var fs = require('fs');
     var bitcoinJs = require('bitcoinjs-lib');
+    var request = require('request');
   }
 
   {//Configuration settings
@@ -84,6 +85,7 @@ var run = async function () {
     var tokenbalanceupdateinterval = config.tokenbalanceupdateinterval;
     var useServerWallets = config.useServerWallets;
     var dbHouseKeepingOperationInterval = config.dbHouseKeepingOperationInterval;
+    var backuputxoserver = config.backuputxoserver;
   }
 
   {//Conditionally included libs
@@ -916,17 +918,23 @@ var run = async function () {
 
       try {
         if (req.url.startsWith("/v2/address/utxo/bitcoincash:")) {
-          res.writeHead(200, { "Access-Control-Allow-Origin": AccessControlAllowOrigin, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
           let address = sanitizeAlphanumeric(req.url.substr(29));
+          res.writeHead(200, { "Access-Control-Allow-Origin": AccessControlAllowOrigin, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
           if (address.length > 120) {
             res.end(`{"error":"Address Too Long"}`);
             return;
           }
+
           if (useServerWallets) {
             console.log(req.url);
             rpc.listUnspent(0, 9999999, [address], function (err, ret) {
               if (ret.result.length == 0) {
-                //todo: forward the request
+                console.log('redirecting');
+                request({ url: backuputxoserver + address, encoding: null }, function (error, response, body) {
+                  res.end(body);
+                  return;
+                });
+                return;
               }
               console.log(ret.result.length);
               returnUTXOs(err, ret, res);
@@ -938,7 +946,7 @@ var run = async function () {
             return;
           } else {
             //rpc.listUnspent({ address }, function (err, ret) { returnUTXOs(err, ret, res); });
-            res.end(`{"error":"BCHD GRPC - Not Supported"}`);
+            res.end(`{"error":"Server wallets and BCHD GRPC - Neither Supported"}`);
             return;
           }
         } else if (req.url.startsWith("/v2/reg/")) {
