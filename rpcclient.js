@@ -220,6 +220,8 @@ RpcClient.callspec = {
   walletLock: '',
   walletPassPhrase: 'string int',
   walletPassphraseChange: '',
+  getTxOutProof:'obj',
+  importPrunedFunds:'str str str'
 };
 
 var slice = function(arr, start, end) {

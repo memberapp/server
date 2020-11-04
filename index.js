@@ -930,8 +930,34 @@ var run = async function () {
             rpc.listUnspent(0, 9999999, [address], function (err, ret) {
               if (ret.result.length == 0) {
                 console.log('redirecting');
-                request({ url: backuputxoserver + address, encoding: null }, function (error, response, body) {
+                request({ url: backuputxoserver + address, encoding: null }, async function (error, response, body) {
                   res.end(body);
+                  console.log("importing wallet for " + address);
+                  //Try using importprunedfunds to read utxos into wallet
+                  try {
+                    var theUTXOs = JSON.parse(body).utxos;
+                  } catch (err) {
+                    console.log(err);
+                  }
+                  for (var i = 0; i < theUTXOs.length; i++) {
+                    try {
+                      if(theUTXOs[i].satoshis==546)continue;//don't want SLP trxs
+                      rpc.getRawTransaction(theUTXOs[i].txid, function (err, ret) {
+                        var raw = ret.result;
+                        try {
+                          rpc.getTxOutProof([theUTXOs[i].txid], function (err, ret) {
+                            try {
+                              var proof = ret.result;
+                              rpc.importPrunedFunds(raw, proof, "ipf", function (err, ret) {
+                                console.log("utxo imported " + ret.id);
+                              });
+                            } catch (err) { console.log(err); }
+                          });
+                        } catch (err) { console.log(err); }
+                      });
+                      await sleep(100);
+                    } catch (err) { console.log(err); }
+                  }
                   return;
                 });
                 return;
@@ -1009,10 +1035,10 @@ var run = async function () {
 
             //var inserts = [];
             var theTime = Math.floor(Date.now() / 1000);
-            
+
             var trySub = "REPLACE INTO pushnotificationsubscribers VALUES (" + escapeFunction(address) + "," + escapeFunction(qs.subscription) + "," + escapeFunction(theTime) + "," + escapeFunction(theTime) + "," + escapeFunction(theTime) + ");";
             dbpoolapp.runQuery(trySub);
-            
+
             return;
 
           } catch (err) {
