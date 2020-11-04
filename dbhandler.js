@@ -32,6 +32,7 @@ dbhandler.createPool = async function (dbtype, options) {
         var fs = require('fs');
         if (!fs.existsSync(options.sqldbfile)) {
             await fs.createReadStream(options.schemafile).pipe(fs.createWriteStream(options.sqldbfile));
+            await sleep(1000); //seem to need to wait for a bit before accessing this copied file
         }
         var pool = await sqlite.open(options.sqldbfile);
         pool.runQuery=pool.all;        
@@ -56,6 +57,8 @@ dbhandler.runQuery = async function (dbtype, pool, sql) {
         return await pool.runQuery(sql);
     }
 }*/
-
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
 
 module.exports = dbhandler;
