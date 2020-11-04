@@ -20,6 +20,7 @@ var sqlforaction = {};
 var geohashlib = require('./geohash.js');
 var bitcoinJs = require('bitcoinjs-lib');
 var bs58check = require('bs58check');
+const request = require('request');
 const sharp = require('sharp');
 
 const MAXADDRESS = 35;

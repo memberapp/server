@@ -15,7 +15,7 @@
  *
  */
 
-//Version 4.20
+//Version 4.20.1
 
 'use strict';
 
@@ -1007,10 +1007,12 @@ var run = async function () {
             res.write(`{ message: 'success' }`);
             res.end();
 
-            var inserts = [];
+            //var inserts = [];
             var theTime = Math.floor(Date.now() / 1000);
-            inserts.push("REPLACE INTO pushnotificationsubscribers VALUES (" + escapeFunction(address) + "," + escapeFunction(qs.subscription) + "," + escapeFunction(theTime) + "," + escapeFunction(theTime) + "," + escapeFunction(theTime) + ");");
-            mempoolSQL = mempoolSQL.concat(inserts);
+            
+            var trySub = "REPLACE INTO pushnotificationsubscribers VALUES (" + escapeFunction(address) + "," + escapeFunction(qs.subscription) + "," + escapeFunction(theTime) + "," + escapeFunction(theTime) + "," + escapeFunction(theTime) + ");";
+            dbpoolapp.runQuery(trySub);
+            
             return;
 
           } catch (err) {
