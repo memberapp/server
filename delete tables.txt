@@ -17,5 +17,6 @@ delete from userratings;
 delete from pushnotificationsubscribers;
 delete from zsqlqueries;
 
-TODO:likesdislikes indexes are different
+
+
 

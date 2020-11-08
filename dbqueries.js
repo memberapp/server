@@ -582,13 +582,14 @@ dbqueries.getQuery = function (req, url, issqlite, escapeFunction, sqltimestamp)
 			rpnameselection.replace(/rp/g, '') +
 			`privatemessages.address as senderaddress,` +
 			rpnameselection.replace(/rp/g, 'recipient') +
-			` recipientnames.name as recipient, userratings.rating as raterrating from privatemessages
+			` recipientnames.name as recipient, userratings.rating as raterrating, u2.rating as recipientrating from privatemessages
 				LEFT JOIN names as names ON privatemessages.address=names.address
 				LEFT JOIN names as recipientnames ON privatemessages.toaddress=recipientnames.address
 				LEFT JOIN userratings ON userratings.address='` + address + `' AND privatemessages.address=userratings.rates 
-					WHERE privatemessages.toaddress='` + address + `' or privatemessages.address='` + address + `' 
-					ORDER BY privatemessages.firstseen 
-					DESC LIMIT 100`;
+				LEFT JOIN userratings as u2 ON u2.address='` + address + `' AND privatemessages.toaddress=u2.rates 
+				WHERE privatemessages.toaddress='` + address + `' or privatemessages.address='` + address + `' 
+				ORDER BY privatemessages.firstseen 
+				DESC LIMIT 100`;
 	}
 
 	if (action == "likesandtips") {
