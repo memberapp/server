@@ -15,11 +15,17 @@
  *
  */
 
-//Version 5.0.0
+
 
 'use strict';
 
 var run = async function () {
+
+  //Version 5.0.7
+  var version="5.0.7";
+  var versionCodename="Engelmann";
+
+  console.log("Stating Member Server v"+version+" ("+versionCodename+")");
 
   {//App includes
     try {

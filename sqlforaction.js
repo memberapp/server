@@ -249,7 +249,12 @@ sqlforaction.getSQLForAction = function (tx, time, issqlite, escapeFunction, blo
 
           //add repost notification
           if (insertNotifications) {
-            sql.push(insertignore + " into notifications VALUES(" + escapeFunction(repostid) + ",'repost',(SELECT address FROM messages WHERE txid = " + escapeFunction(repostid) + ")," + escapeFunction(sentFrom) + "," + escapeFunction(time) + ");");
+            if(decode || topic){
+              //for quote remember, should probably use the txid
+              sql.push(insertignore + " into notifications VALUES(" + escapeFunction(txid) + ",'repost',(SELECT address FROM messages WHERE txid = " + escapeFunction(repostid) + ")," + escapeFunction(sentFrom) + "," + escapeFunction(time) + ");");
+            }else{
+              sql.push(insertignore + " into notifications VALUES(" + escapeFunction(repostid) + ",'repost',(SELECT address FROM messages WHERE txid = " + escapeFunction(repostid) + ")," + escapeFunction(sentFrom) + "," + escapeFunction(time) + ");");
+            }
           }
         }
 
