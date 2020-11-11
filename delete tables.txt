@@ -1,0 +1,22 @@
+delete from blocks;
+delete from follows;
+delete from hiddenposts;
+delete from hiddenusers;
+delete from likesdislikes;
+delete from messages;
+delete from mods;
+delete from names;
+delete from notifications;
+delete from privatemessages;
+delete from status;
+delete from subs;
+delete from tips;
+delete from topics;
+delete from transactions;
+delete from userratings;
+delete from pushnotificationsubscribers;
+delete from zsqlqueries;
+
+
+
+
