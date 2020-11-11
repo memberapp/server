@@ -6,13 +6,7 @@ This is the server component of Member. Run it against your Bitcoin Cash Node to
 
 # Getting Started
 
-You can run Member Server using the compiled binaries or using node - 
-
-Using Binaries
-1. Edit the release/config.js file to include your BCH node user/pass and the directory to store pictures
-2. Start the binary for your OS in release folder (win, mac, linux 64bit supplied)
-3. Wait for it to get up to date 
-4. Open release/index.html in your browser
+You can run Member Server using node - 
 
 Using Node
 
@@ -21,6 +15,12 @@ Using Node
 3. Run 'node index.js'
 4. Wait for it to get up to date 
 5. Open release/index.html in your browser
+
+Using Binaries
+
+Refer to the binary releases here
+https://github.com/memberapp/server-release
+
 
 Member Server will use SQLite by default and this is the recommended database for personal use.
 
