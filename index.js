@@ -21,8 +21,8 @@
 
 var run = async function () {
 
-  //Version 5.0.7
-  var version="5.0.7";
+  //Version 5.0.8
+  var version="5.0.8";
   var versionCodename="Engelmann";
 
   console.log("Stating Member Server v"+version+" ("+versionCodename+")");
@@ -1051,25 +1051,7 @@ var run = async function () {
             console.log(err);
           }
 
-        } else if (req.url.startsWith("/v2/notification")) {
-          try {
-
-            //const subscription = req.body
-            //await saveToDatabase(subscription) //Method to save the subscription to Database
-            console.log(req.body);
-            //res.writeHead(200, { "Access-Control-Allow-Origin": AccessControlAllowOrigin, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
-            //res.write(`{ message: 'success' }`);
-            //res.end();
-            //sendNotification(subscription, message);
-            webpush.sendNotification(null, 'test');
-            return;
-
-          } catch (err) {
-            console.log(err);
-          }
-
-        }
-        else if (req.url.startsWith("/p/") || req.url.startsWith("/a/")) {
+        } else if (req.url.startsWith("/p/") || req.url.startsWith("/a/")) {
           console.log(req.url);
           res.writeHead(200, { "Access-Control-Allow-Origin": AccessControlAllowOrigin, 'Content-Type': 'text/html; charset=utf-8' });
           //get first 10 characters, sanitized
@@ -1144,24 +1126,19 @@ var run = async function () {
     }
 
     async function runQuery(processingFunction, res, msc, query, type) {
-      //sql
-      //if (usesqlite) {
-      //var dbweb = await sqlite.open(sqldbfile);
+      
+      //if(record is in the cache)
+      //return the cached record
+      //else
+
       try {
         var result = await dbpoolService.runQuery(query);
+        //if(add record to the cache)
         return processingFunction(null, result, res, null, msc, query, type);
       } catch (e) {
         console.log(query);
         return processingFunction(e, null, res, null, msc, query, type);
       }
-      /*} else {
-  
-        //Open database connection
-        var dbweb = mysql.createConnection(dbconfig);
-        dbweb.connect(function (err) { if (err) throw err; });
-        dbweb.query("SET NAMES 'utf8mb4'; USE " + dbname + ";" + query, function (err, result) { processingFunction(err, result[2], res, dbweb, msc, query, type) });
-        return;
-      }*/
     }
 
 
