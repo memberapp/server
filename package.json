@@ -8,7 +8,7 @@
   "license": "AGPL-3.0",
   "dependencies": {
     "@grpc/proto-loader": ">=0.5.3",
-    "bitcoinjs-lib": "3.3.2",
+    "bitcoinjs-lib": "5.2.1",
     "grpc": ">=1.24.2",
     "mysql": ">=2.15.0",
     "pkg": "^4.4.9",
